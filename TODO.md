@@ -1,0 +1,57 @@
+# Remaining work
+
+This index lists only work that remains, ordered by importance and dependency.
+Todo files do not have statuses: when work is complete, delete its file and its
+index entry instead of marking it completed. Keep descriptions to one line and
+reorder the index whenever implementation evidence changes the priorities.
+
+## Lossless sections
+
+- [Render losslessly](todo/render-losslessly.md) — Return byte-identical Markdown for every unchanged parsed document.
+- [Query core selectors](todo/query-core-selectors.md) — Compile and evaluate foundational type, attribute, child, and descendant selectors.
+- [Expose query API](todo/expose-query-api.md) — Publish the first coherent rendering, selector, and query surface from `@prelude/mq`.
+- [Verify lossless sections](todo/verify-lossless-sections.md) — Add acceptance fixtures and properties for round-trip preservation and heading nesting.
+
+## Query CLI
+
+- [Parse query expressions](todo/parse-query-expressions.md) — Parse the initial jq-like value, projection, collection, and pipeline expressions.
+- [Evaluate query streams](todo/evaluate-query-streams.md) — Execute expressions as ordered streams with deterministic value serialization.
+- [Build query CLI](todo/build-query-cli.md) — Add stdin/files, output modes, colors, diagnostics, and stable exit statuses.
+- [Verify API and CLI equivalence](todo/verify-api-cli-equivalence.md) — Prove that public library and CLI queries produce equivalent results.
+- [Document query workflows](todo/document-query-workflows.md) — Ship help text and executable end-user query examples.
+
+## Complete Markdown and selectors
+
+- [Support CommonMark blocks](todo/support-commonmark-blocks.md) — Add the remaining CommonMark block forms and lazy inline views.
+- [Support GFM extensions](todo/support-gfm-extensions.md) — Add tables, task items, strikethrough, and autolinks.
+- [Support frontmatter and definitions](todo/support-frontmatter-definitions.md) — Recognize frontmatter and reference definitions without losing source syntax.
+- [Complete selector language](todo/complete-selector-language.md) — Add the remaining operators, sibling combinators, lists, and pseudos.
+- [Bound parser recovery](todo/bound-parser-recovery.md) — Make opaque recovery deterministic and enforce finite parser and selector resource limits.
+- [Run Markdown conformance](todo/run-markdown-conformance.md) — Validate CommonMark/GFM behavior and mq losslessness against conformance corpora.
+
+## Source-local edits
+
+- [Model source patches](todo/model-source-patches.md) — Represent non-overlapping source patches and update source maps deterministically.
+- [Parse edit fragments](todo/parse-edit-fragments.md) — Parse Markdown fragments and plan boundary newlines for insertions.
+- [Implement edit operations](todo/implement-edit-operations.md) — Add replace, remove, insertion, title, and attribute operations.
+- [Preserve immutable edits](todo/preserve-immutable-edits.md) — Return immutable edited snapshots equivalent to reparsing their rendered source.
+- [Add CLI writes](todo/add-cli-writes.md) — Add explicit output and atomic in-place writing modes.
+- [Verify write failure safety](todo/verify-write-failure-safety.md) — Inject failures to prove original files survive unsuccessful writes.
+
+## Schemas
+
+- [Load schemas strictly](todo/load-schemas-strictly.md) — Define the meta-schema and reject unknown or malformed schema input.
+- [Implement schema rules](todo/implement-schema-rules.md) — Validate cardinality, content, attributes, children, ordering, and uniqueness.
+- [Integrate frontmatter and JSON Schema](todo/integrate-frontmatter-json-schema.md) — Decode frontmatter and decide the JSON Schema integration boundary.
+- [Format validation diagnostics](todo/format-validation-diagnostics.md) — Stabilize diagnostic codes, locations, ordering, and JSON output.
+- [Expose validation API and CLI](todo/expose-validation-api-cli.md) — Add `validate` and the `mq validate` command.
+- [Validate before writing](todo/validate-before-writing.md) — Prevent output and in-place writes when requested schema validation fails.
+
+## Hardening and release
+
+- [Fuzz language boundaries](todo/fuzz-language-boundaries.md) — Fuzz Markdown, edits, selectors, expressions, and schemas for crashes and invariant violations.
+- [Benchmark resource limits](todo/benchmark-resource-limits.md) — Measure performance and document finite production defaults.
+- [Verify package artifacts](todo/verify-package-artifacts.md) — Test exports, provenance, executable wiring, and clean installs from packed tarballs.
+- [Automate releases](todo/automate-releases.md) — Add release CI and a generated changelog policy.
+- [Ship executable examples](todo/ship-executable-examples.md) — Cover querying, modifying, creating, and validating in end-to-end fixtures.
+- [Review public contracts](todo/review-public-contracts.md) — Review every public 0.x contract before the first release.

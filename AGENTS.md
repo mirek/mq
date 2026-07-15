@@ -1,8 +1,17 @@
 # Working on mq
 
 Treat [SPEC.md](./SPEC.md) as the source of truth for observable behavior and
-[PLAN.md](./PLAN.md) as the implementation order. Update both in the same pull
-request when a decision or milestone changes.
+[TODO.md](./TODO.md) as the index of remaining implementation work. Read the
+relevant task in `todo/` before changing behavior.
+
+All Markdown documentation and repository skills are live documents. Every
+pull request must review affected documents and skills and update them in the
+same pull request so they describe the resulting state.
+
+Todos represent only work that remains. When a task is complete, delete its file
+from `todo/` and remove its entry from `TODO.md`; never add a status, mark it
+completed, or retain it as historical documentation. Keep the index ordered by
+importance with the most important work first.
 
 Keep `@prelude/mq` independent of CLI concerns. Keep filesystem access, process
 exit codes, and argument parsing in `@prelude/mq-cli`.
