@@ -4,8 +4,9 @@
 structural queries and transformations easy from both shell pipelines and
 programs.
 
-The public package currently provides the foundational result, source location,
-diagnostic, concrete syntax tree, and derived document model. Parsing, querying,
+The public package currently provides foundational document contracts and
+lossless block recognition for source metadata, headings, paragraphs, blank
+lines, and opaque fallback blocks. Section derivation, rendering, querying,
 editing, validation, and CLI behavior remain under implementation.
 
 Read [SPEC.md](./SPEC.md) for the product and language design, then
