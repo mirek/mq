@@ -23,6 +23,8 @@ export type {
   Section,
   TextInline,
 } from "./model.ts";
+export { parse } from "./parse.ts";
+export type { ParseOptions } from "./parse.ts";
 export { failure, success } from "./result.ts";
 export type {
   Failure,
