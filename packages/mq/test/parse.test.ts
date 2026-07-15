@@ -67,6 +67,13 @@ describe("parse", () => {
         range: result.value.cst.children.at(-1)?.range,
       },
     ]);
+    assert.deepEqual(
+      result.value.sections.map(({ level, title }) => ({ level, title })),
+      [
+        { level: 3, title: "Café" },
+        { level: 1, title: "Install" },
+      ],
+    );
 
     const reconstructed = result.value.cst.children
       .map(({ range }) =>
@@ -115,5 +122,93 @@ describe("parse", () => {
     );
     assert.equal(result.value.diagnostics.length, 1);
     assert.equal(result.value.source.hasFinalNewline, false);
+  });
+
+  it("derives nested sections for skipped and repeated heading ranks", () => {
+    const source = [
+      "lead",
+      "# A",
+      "intro",
+      "### C",
+      "text",
+      "## B",
+      "body",
+      "## B2",
+      "# D",
+      "tail",
+    ].join("\n");
+
+    const result = parse(source);
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    const [a, d] = result.value.sections;
+    assert.deepEqual(result.value.children.map(({ type }) => type), [
+      "paragraph",
+      "section",
+      "section",
+    ]);
+    assert.deepEqual(result.value.preamble.map(({ type }) => type), [
+      "paragraph",
+    ]);
+    assert.deepEqual(
+      result.value.sections.map(({ level, title }) => ({ level, title })),
+      [
+        { level: 1, title: "A" },
+        { level: 1, title: "D" },
+      ],
+    );
+    assert.deepEqual(
+      a?.sections.map(({ level, title }) => ({ level, title })),
+      [
+        { level: 3, title: "C" },
+        { level: 2, title: "B" },
+        { level: 2, title: "B2" },
+      ],
+    );
+    assert.deepEqual(a?.children.map(({ type }) => type), [
+      "heading",
+      "paragraph",
+      "section",
+      "section",
+      "section",
+    ]);
+    assert.deepEqual(a?.sections.map(({ body }) => body.length), [1, 1, 0]);
+    assert.equal(a?.body.length, 1);
+    assert.equal(d?.body.length, 1);
+    assert.deepEqual(
+      [a, ...(a?.sections ?? []), d].map((section) => [
+        section?.range.start.byteOffset,
+        section?.range.end.byteOffset,
+      ]),
+      [
+        [source.indexOf("# A"), source.indexOf("# D")],
+        [source.indexOf("### C"), source.indexOf("## B")],
+        [source.indexOf("## B"), source.indexOf("## B2")],
+        [source.indexOf("## B2"), source.indexOf("# D")],
+        [source.indexOf("# D"), Buffer.byteLength(source)],
+      ],
+    );
+  });
+
+  it("keeps skipped top-level ranks and section collections immutable", () => {
+    const source = "### Orphan\nbody\n# Root\n";
+    const result = parse(source);
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    assert.deepEqual(
+      result.value.sections.map(({ level, title }) => ({ level, title })),
+      [
+        { level: 3, title: "Orphan" },
+        { level: 1, title: "Root" },
+      ],
+    );
+    assert.equal(Object.isFrozen(result.value.sections), true);
+    assert.equal(Object.isFrozen(result.value.sections[0]), true);
+    assert.equal(Object.isFrozen(result.value.sections[0]?.body), true);
+    assert.equal(Object.isFrozen(result.value.sections[0]?.children), true);
   });
 });

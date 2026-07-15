@@ -11,7 +11,8 @@ description: Design, review, or revise mq syntax and semantics in SPEC.md. Use w
 3. Prefer one orthogonal primitive over multiple special cases.
 4. Specify syntax, semantics, diagnostics, and edge cases together.
 5. Mark deferred behavior explicitly; do not leave normative behavior ambiguous.
-6. Update conformance examples and `PLAN.md` when a decision changes delivery.
+6. Update conformance examples, affected `todo/` files, and `TODO.md` ordering
+   when a decision changes delivery.
 
 Preserve the distinction between the concrete syntax tree and the derived
 section tree. Treat heading-derived hierarchy as a view over source Markdown,

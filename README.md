@@ -4,13 +4,12 @@
 structural queries and transformations easy from both shell pipelines and
 programs.
 
-The public package currently provides foundational document contracts and
-lossless block recognition for source metadata, headings, paragraphs, blank
-lines, and opaque fallback blocks. Section derivation, rendering, querying,
+The public package currently provides foundational document contracts, lossless
+block recognition, and heading-derived section trees. Rendering, querying,
 editing, validation, and CLI behavior remain under implementation.
 
 Read [SPEC.md](./SPEC.md) for the product and language design, then
-[PLAN.md](./PLAN.md) for the implementation sequence.
+[TODO.md](./TODO.md) for the prioritized remaining work.
 
 ## Workspace
 

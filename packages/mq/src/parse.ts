@@ -8,6 +8,7 @@ import type {
   HeadingLevel,
   OpaqueBlock,
   Paragraph,
+  Section,
 } from "./model.ts";
 import { success, type Result } from "./result.ts";
 import {
@@ -49,6 +50,21 @@ interface AtxHeadingMatch {
 
 interface SetextHeadingMatch {
   readonly level: 1 | 2;
+}
+
+interface SectionBuilder {
+  readonly type: "section-builder";
+  readonly heading: Heading;
+  readonly body: Block[];
+  readonly sections: SectionBuilder[];
+  readonly children: (Heading | Block | SectionBuilder)[];
+  end: SourcePosition;
+}
+
+interface DerivedSections {
+  readonly preamble: readonly Block[];
+  readonly children: readonly (Block | Section)[];
+  readonly sections: readonly Section[];
 }
 
 const utf8Width = (codePoint: number): number => {
@@ -454,6 +470,97 @@ const parseBlocks = (
   };
 };
 
+const sectionBuilder = (
+  heading: Heading,
+  end: SourcePosition,
+): SectionBuilder => ({
+  type: "section-builder",
+  heading,
+  body: [],
+  sections: [],
+  children: [heading],
+  end,
+});
+
+const freezeSection = (builder: SectionBuilder): Section => {
+  const sections = builder.sections.map(freezeSection);
+  const sectionByBuilder = new Map(
+    builder.sections.map((child, index) => [child, sections[index]!] as const),
+  );
+  const children = builder.children.map((child) =>
+    child.type === "section-builder" ? sectionByBuilder.get(child)! : child,
+  );
+
+  return Object.freeze({
+    type: "section",
+    range: sourceRange(builder.heading.range.start, builder.end),
+    level: builder.heading.level,
+    heading: builder.heading,
+    title: builder.heading.title,
+    body: frozenArray(builder.body),
+    sections: frozenArray(sections),
+    children: frozenArray(children),
+  });
+};
+
+const deriveSections = (
+  blocks: readonly ParsedBlock[],
+  documentEnd: SourcePosition,
+): DerivedSections => {
+  const preamble: Block[] = [];
+  const rootChildren: (Block | SectionBuilder)[] = [];
+  const rootSections: SectionBuilder[] = [];
+  const stack: SectionBuilder[] = [];
+
+  for (const { derived } of blocks) {
+    if (derived.type !== "heading") {
+      const parent = stack.at(-1);
+      if (parent === undefined) {
+        preamble.push(derived);
+        rootChildren.push(derived);
+      } else {
+        parent.body.push(derived);
+        parent.children.push(derived);
+      }
+      continue;
+    }
+
+    while (
+      stack.length > 0 &&
+      stack.at(-1)!.heading.level >= derived.level
+    ) {
+      stack.pop()!.end = derived.range.start;
+    }
+
+    const builder = sectionBuilder(derived, documentEnd);
+    const parent = stack.at(-1);
+    if (parent === undefined) {
+      rootSections.push(builder);
+      rootChildren.push(builder);
+    } else {
+      parent.sections.push(builder);
+      parent.children.push(builder);
+    }
+    stack.push(builder);
+  }
+
+  for (const open of stack) open.end = documentEnd;
+
+  const sections = rootSections.map(freezeSection);
+  const sectionByBuilder = new Map(
+    rootSections.map((builder, index) => [builder, sections[index]!] as const),
+  );
+  const children = rootChildren.map((child) =>
+    child.type === "section-builder" ? sectionByBuilder.get(child)! : child,
+  );
+
+  return {
+    preamble: frozenArray(preamble),
+    children: frozenArray(children),
+    sections: frozenArray(sections),
+  };
+};
+
 export const parse = (
   source: string,
   options: ParseOptions = {},
@@ -477,11 +584,7 @@ export const parse = (
     children: frozenArray(concreteChildren),
   });
 
-  const preamble: Block[] = [];
-  for (const block of parsed.blocks) {
-    if (block.derived.type === "heading") break;
-    preamble.push(block.derived);
-  }
+  const derived = deriveSections(parsed.blocks, documentRange.end);
 
   const document: Document = Object.freeze({
     type: "document",
@@ -490,9 +593,9 @@ export const parse = (
     range: documentRange,
     diagnostics: parsed.diagnostics,
     cst,
-    preamble: frozenArray(preamble),
-    children: frozenArray(preamble),
-    sections: Object.freeze([]),
+    preamble: derived.preamble,
+    children: derived.children,
+    sections: derived.sections,
   });
 
   return success(document, parsed.diagnostics);
