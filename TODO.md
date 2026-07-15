@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Lossless sections
 
-- [Render losslessly](todo/render-losslessly.md) — Return byte-identical Markdown for every unchanged parsed document.
 - [Query core selectors](todo/query-core-selectors.md) — Compile and evaluate foundational type, attribute, child, and descendant selectors.
 - [Expose query API](todo/expose-query-api.md) — Publish the first coherent rendering, selector, and query surface from `@prelude/mq`.
 - [Verify lossless sections](todo/verify-lossless-sections.md) — Add acceptance fixtures and properties for round-trip preservation and heading nesting.
