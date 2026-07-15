@@ -5,8 +5,9 @@ structural queries and transformations easy from both shell pipelines and
 programs.
 
 The public package currently provides foundational document contracts, lossless
-block recognition, and heading-derived section trees. Rendering, querying,
-editing, validation, and CLI behavior remain under implementation.
+block recognition, heading-derived section trees, and byte-identical rendering
+of unchanged documents. Querying, editing, validation, and CLI behavior remain
+under implementation.
 
 Read [SPEC.md](./SPEC.md) for the product and language design, then
 [TODO.md](./TODO.md) for the prioritized remaining work.
