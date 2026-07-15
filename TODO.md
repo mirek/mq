@@ -5,12 +5,6 @@ Todo files do not have statuses: when work is complete, delete its file and its
 index entry instead of marking it completed. Keep descriptions to one line and
 reorder the index whenever implementation evidence changes the priorities.
 
-## Lossless sections
-
-- [Query core selectors](todo/query-core-selectors.md) — Compile and evaluate foundational type, attribute, child, and descendant selectors.
-- [Expose query API](todo/expose-query-api.md) — Publish the first coherent rendering, selector, and query surface from `@prelude/mq`.
-- [Verify lossless sections](todo/verify-lossless-sections.md) — Add acceptance fixtures and properties for round-trip preservation and heading nesting.
-
 ## Query CLI
 
 - [Parse query expressions](todo/parse-query-expressions.md) — Parse the initial jq-like value, projection, collection, and pipeline expressions.

@@ -26,6 +26,8 @@ export type {
 export { parse } from "./parse.ts";
 export type { ParseOptions } from "./parse.ts";
 export { render } from "./render.ts";
+export { compileSelector, select } from "./selector.ts";
+export type { CompiledSelector, SelectOptions } from "./selector.ts";
 export { failure, success } from "./result.ts";
 export type {
   Failure,

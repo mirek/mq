@@ -271,7 +271,20 @@ the derived tree and return nodes in source order without duplicates.
 
 ### 6.1 Core syntax
 
-The first selector version supports:
+The lossless-sections slice implements:
+
+- type selectors for every documented node type;
+- the universal selector `*`;
+- typed equality attributes such as `[level=2]` and `[title="Install"]`;
+- descendant and child combinators: `section code`, `section > code`.
+
+Numeric attributes require unquoted numeric values, boolean attributes require
+unquoted `true` or `false`, and string values may be quoted or unquoted. A
+backslash escapes the following character in a quoted string. Unsupported
+syntax and values of the wrong attribute type produce immutable selector
+diagnostics rather than throwing.
+
+The complete selector language additionally supports:
 
 - type selectors: `section`, `heading`, `code`;
 - universal selector: `*`;
@@ -322,6 +335,11 @@ const matches = select(document, selector);
 Syntax failures are returned as diagnostics with ranges into the selector. No
 selector function throws for ordinary invalid user input; convenience `orThrow`
 adapters may be supplied separately.
+
+`compileSelector` returns an immutable `Result<CompiledSelector>`. `select`
+returns a frozen readonly node array, includes the supplied root by default, and
+deduplicates node identities while preserving selector-facing source order.
+Passing `{ includeRoot: false }` starts traversal at the root's children.
 
 ## 7. Expressions
 
