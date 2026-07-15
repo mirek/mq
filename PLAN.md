@@ -9,15 +9,14 @@ the same pull request rather than silently diverging.
 
 Deliver the smallest useful library slice:
 
-1. result, range, diagnostic, source-text, CST, document, and section types;
-2. block recognition for BOM/newlines, ATX and Setext headings, paragraphs,
+1. block recognition for BOM/newlines, ATX and Setext headings, paragraphs,
    blank lines, and opaque fallback blocks;
-3. stack-based section derivation, including skipped and repeated ranks;
-4. byte-identical render for unchanged documents;
-5. `compileSelector` and `select` for `document`, `section`, `heading`, type,
+2. stack-based section derivation, including skipped and repeated ranks;
+3. byte-identical render for unchanged documents;
+4. `compileSelector` and `select` for `document`, `section`, `heading`, type,
    child/descendant combinators, and equality attributes;
-6. public exports from `@prelude/mq`;
-7. fixtures and property tests for round-trip and heading nesting.
+5. public parsing and querying exports from `@prelude/mq`;
+6. fixtures and property tests for round-trip and heading nesting.
 
 Exit criterion: the section-query acceptance example works through the public
 library API, and arbitrary recoverable UTF-8 fixtures round-trip exactly.

@@ -127,8 +127,11 @@ choice must be recorded as an architectural decision in this specification.
 ### 5.1 Source coordinates
 
 Every concrete node has a half-open byte range `[start, end)` and corresponding
-one-based line/column positions. Public diagnostics expose UTF-16 columns as
-well as byte offsets so editors and terminal tools can both locate text.
+one-based line/column positions. A `SourcePosition` contains a zero-based UTF-8
+`byteOffset`, a one-based `line`, a one-based Unicode code-point `column`, and a
+one-based `utf16Column`. A `SourceRange` contains inclusive `start` and exclusive
+`end` positions. Public diagnostics therefore serve editors and terminal tools
+without coordinate conversion.
 
 The document records:
 
@@ -155,14 +158,20 @@ authoritative even after an inline view is requested.
 
 ### 5.3 Derived tree
 
-The public derived model begins with these conceptual TypeScript shapes. Exact
-field names may evolve during 0.x, but the relationships are normative.
+The public derived model begins with these TypeScript shapes. More block and
+inline variants will join the unions as their milestones land; the relationships
+are normative.
 
 ```ts
-type MarkdownNode = Document | Section | Block | Inline;
+type MarkdownNode = Document | Section | Heading | Block | Inline;
 
 interface Document {
   readonly type: "document";
+  readonly source: SourceText;
+  readonly path?: string;
+  readonly range: SourceRange;
+  readonly diagnostics: readonly Diagnostic[];
+  readonly cst: ConcreteDocument;
   readonly preamble: readonly Block[];
   readonly children: readonly (Block | Section)[];
   readonly sections: readonly Section[];
@@ -170,6 +179,7 @@ interface Document {
 
 interface Section {
   readonly type: "section";
+  readonly range: SourceRange;
   readonly level: 1 | 2 | 3 | 4 | 5 | 6;
   readonly heading: Heading;
   readonly title: string;
@@ -178,6 +188,13 @@ interface Section {
   readonly children: readonly (Heading | Block | Section)[];
 }
 ```
+
+`SourceText` retains the original string and UTF-8 byte length, an optional BOM
+range, dominant newline style, non-dominant newline occurrences, and whether the
+source has a final newline. The CST root and its descendants each expose a
+concrete `kind`, source range, and ordered concrete children. Exact lexemes are
+read from the retained source using those ranges rather than copied into both
+trees.
 
 `children` is the selector-facing order. A section's heading is its first child,
 followed by body blocks and nested sections in source order. Convenience fields
@@ -465,6 +482,12 @@ interface Diagnostic {
 
 Codes are stable within a major version. Human wording may improve in minor
 versions. Parse, query, edit, and schema failures all use this representation.
+
+Fallible public functions return a discriminated `Result<T>`. Successes contain
+`ok: true`, a `value`, and any recovery diagnostics. Failures contain `ok: false`
+and at least one diagnostic. Result objects and their diagnostic arrays are
+immutable; ordinary invalid input is represented as failure data rather than a
+thrown exception.
 
 ## 9. TypeScript API
 

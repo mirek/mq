@@ -4,8 +4,9 @@
 structural queries and transformations easy from both shell pipelines and
 programs.
 
-This repository currently contains the project scaffold and specification. It
-does not yet provide a functional parser, API, or CLI.
+The public package currently provides the foundational result, source location,
+diagnostic, concrete syntax tree, and derived document model. Parsing, querying,
+editing, validation, and CLI behavior remain under implementation.
 
 Read [SPEC.md](./SPEC.md) for the product and language design, then
 [PLAN.md](./PLAN.md) for the implementation sequence.
