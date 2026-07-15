@@ -25,6 +25,7 @@ export type {
 } from "./model.ts";
 export { parse } from "./parse.ts";
 export type { ParseOptions } from "./parse.ts";
+export { render } from "./render.ts";
 export { failure, success } from "./result.ts";
 export type {
   Failure,
