@@ -1,0 +1,7 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/mq/tsconfig.build.json" },
+    { "path": "./packages/mq-cli/tsconfig.build.json" }
+  ]
+}
