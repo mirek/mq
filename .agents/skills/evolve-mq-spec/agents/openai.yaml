@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evolve mq spec"
+  short_description: "Design coherent mq syntax and semantics"
+  default_prompt: "Use $evolve-mq-spec to refine the mq specification."

@@ -1,0 +1,35 @@
+{
+  "name": "@prelude/mq",
+  "version": "0.0.0",
+  "description": "A lossless Markdown query, validation, and transformation engine.",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mirek/mq.git",
+    "directory": "packages/mq"
+  },
+  "scripts": {
+    "build": "tsc --build tsconfig.build.json",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "node --test",
+    "typecheck": "tsc --build"
+  },
+  "dependencies": {
+    "@prelude/parser": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

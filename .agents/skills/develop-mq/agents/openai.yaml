@@ -1,0 +1,4 @@
+interface:
+  display_name: "Develop mq"
+  short_description: "Implement mq from its spec and invariants"
+  default_prompt: "Use $develop-mq to implement the next mq vertical slice."
