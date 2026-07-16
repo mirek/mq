@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { validate } from "../src/index.ts";
 import { parse } from "../src/parse.ts";
 import { loadSchema, MQ_SCHEMA_V1, type MarkdownSchemaInput } from "../src/schema.ts";
 import { validateSchema } from "../src/validate.ts";
@@ -20,6 +21,31 @@ const schema = (input: MarkdownSchemaInput) => {
 };
 
 describe("schema rule evaluation", () => {
+  it("exposes equivalent Result behavior for JSON and typed schemas", () => {
+    const markdown = document("# Wrong\n");
+    const input: MarkdownSchemaInput = {
+      $schema: MQ_SCHEMA_V1,
+      rules: [{ selector: "heading", text: { enum: ["Right"] } }],
+    };
+    const typed = validate(markdown, input);
+    const json = validate(markdown, JSON.stringify(input));
+    assert.equal(typed.ok, false);
+    assert.equal(json.ok, false);
+    if (!typed.ok && !json.ok) {
+      assert.deepEqual(
+        json.diagnostics.map(({ code, message }) => ({ code, message })),
+        typed.diagnostics.map(({ code, message }) => ({ code, message })),
+      );
+    }
+
+    const valid = validate(markdown, {
+      $schema: MQ_SCHEMA_V1,
+      rules: [{ selector: "heading", text: { enum: ["Wrong"] } }],
+    });
+    assert.equal(valid.ok, true);
+    if (valid.ok) assert.equal(valid.value, markdown);
+  });
+
   it("accepts a template exercising every rule family from typed and JSON schemas", () => {
     const markdown = document(
       "# Record\nIntro.\n\n## Status\nAccepted\n\n## Items\n- Alpha\n- Beta\n",

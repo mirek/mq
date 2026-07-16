@@ -14,11 +14,15 @@ import {
   type CompiledSelector,
 } from "./selector.ts";
 import {
+  loadSchema,
   schemaSourceMetadata,
   type MarkdownSchema,
+  type MarkdownSchemaInput,
   type MarkdownSchemaRule,
   type SchemaChildrenConstraint,
+  type SchemaLoadOptions,
 } from "./schema.ts";
+import { failure, success, type Result } from "./result.ts";
 
 interface OrderedDiagnostic {
   readonly diagnostic: Diagnostic;
@@ -315,4 +319,17 @@ const validateChildren = (
       }
     }
   }
+};
+
+/** Validates one parsed document against JSON schema source or typed schema data. */
+export const validate = (
+  document: Document,
+  schema: string | MarkdownSchemaInput,
+  options: SchemaLoadOptions = {},
+): Result<Document> => {
+  const loaded = loadSchema(schema, options);
+  if (!loaded.ok) return loaded;
+  const diagnostics = validateSchema(document, loaded.value);
+  const [first, ...rest] = diagnostics;
+  return first === undefined ? success(document) : failure(first, ...rest);
 };

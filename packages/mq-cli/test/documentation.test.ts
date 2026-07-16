@@ -6,11 +6,14 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
 const workspace = fileURLToPath(new URL("../../..", import.meta.url));
-const guidePath = join(workspace, "docs", "query-workflows.md");
-const guide = readFileSync(guidePath, "utf8");
-const transcripts = [...guide.matchAll(/```console\n([\s\S]*?)```/gu)];
+const guidePaths = ["query-workflows.md", "validation-workflows.md"].map((name) =>
+  join(workspace, "docs", name),
+);
+const transcripts = guidePaths.flatMap((path) =>
+  Array.from(readFileSync(path, "utf8").matchAll(/```console\n([\s\S]*?)```/gu)),
+);
 
-describe("documented query workflows", () => {
+describe("documented CLI workflows", () => {
   it("executes every console transcript with the installed workspace binary", () => {
     assert.ok(transcripts.length > 0);
 

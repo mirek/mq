@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Schemas
 
-- [Expose validation API and CLI](todo/expose-validation-api-cli.md) — Add `validate` and the `mq validate` command.
 - [Validate before writing](todo/validate-before-writing.md) — Prevent output and in-place writes when requested schema validation fails.
 
 ## Hardening and release

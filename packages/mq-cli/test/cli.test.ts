@@ -75,6 +75,98 @@ describe("mq query CLI", () => {
 
     assertResult(run(["--help"], "ignored"), 0, help, "");
     assertResult(run(["-h"], "ignored"), 0, help, "");
+
+    const validationHelp = [
+      "Usage: mq validate --schema <schema.json> [file ...]",
+      "",
+      "Validate Markdown documents against one mq schema.",
+      "",
+      "Arguments:",
+      "  file ...                   Input files; omit for stdin, - also means stdin",
+      "",
+      "Options:",
+      "      --schema <path>        JSON mq schema (required)",
+      "      --color <policy>       auto, always, or never (default: auto)",
+      "      --diagnostics <format> human or json (default: human)",
+      "  -h, --help                 Show this help",
+      "",
+    ].join("\n");
+    assertResult(run(["validate", "--help"], "ignored"), 0, validationHelp, "");
+  });
+
+  it("validates files with one shared schema in input order", () => {
+    writeFileSync(
+      join(directory, "template.json"),
+      JSON.stringify({
+        $schema: "https://prelude.dev/mq/schema/v1",
+        rules: [{ selector: "heading", text: { enum: ["Right"] } }],
+      }),
+    );
+    writeFileSync(join(directory, "valid.md"), "# Right\n");
+    writeFileSync(join(directory, "invalid.md"), "# Wrong\n");
+
+    const result = run([
+      "validate",
+      "--schema",
+      "template.json",
+      "valid.md",
+      "invalid.md",
+    ]);
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, "");
+    assert.equal(
+      result.stderr,
+      'invalid.md:1:1: error[schema.text-enum]: Plain text "Wrong" is not one of ["Right"].\n' +
+        "template.json:1:56: note: Schema rule 1 is defined here.\n",
+    );
+
+    const json = run([
+      "validate",
+      "--schema",
+      "template.json",
+      "--diagnostics=json",
+      "invalid.md",
+    ]);
+    assert.equal(json.status, 1);
+    assert.equal(json.stdout, "");
+    assert.equal(JSON.parse(json.stderr).code, "schema.text-enum");
+
+    assertResult(
+      run(["validate", "--schema", "template.json"], "# Right\n"),
+      0,
+      "",
+      "",
+    );
+    assertResult(
+      run(["validate", "invalid.md"]),
+      2,
+      "",
+      "mq: error[cli.usage]: mq validate requires --schema <path>.\n",
+    );
+    assertResult(
+      run(["validate", "--schema", "missing-schema.json", "valid.md"]),
+      3,
+      "",
+      "missing-schema.json: error[cli.io]: Cannot read schema file.\n",
+    );
+    assertResult(
+      run(["validate", "--schema", "template.json", "missing.md"]),
+      3,
+      "",
+      "missing.md: error[cli.io]: Cannot read input file.\n",
+    );
+    assertResult(
+      run([
+        "validate",
+        "--schema",
+        "template.json",
+        "--schema",
+        "template.json",
+      ]),
+      2,
+      "",
+      "mq: error[cli.usage]: mq validate accepts --schema only once.\n",
+    );
   });
 
   it("reads stdin and emits the default document as exact Markdown", () => {

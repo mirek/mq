@@ -890,6 +890,13 @@ export const loadSchema = (
   input: unknown,
   options: SchemaLoadOptions = {},
 ): Result<MarkdownSchema> => {
+  if (
+    input !== null &&
+    typeof input === "object" &&
+    schemaMetadata.has(input as MarkdownSchema)
+  ) {
+    return success(input as MarkdownSchema);
+  }
   let value: JsonValue;
   let node: JsonNode | undefined;
   let source: string | undefined;
