@@ -893,6 +893,11 @@ result, then uses the same atomic sibling-temp workflow without original-mode
 copying. Explicit write modes produce no stdout and write `render(document)`
 bytes rather than query-output framing.
 
+Write-result validation completes before a temporary file is opened. Failures
+while opening, writing, copying permissions, flushing, closing, or renaming a
+temporary file preserve the original bytes. Failed temporary files are removed
+on a best-effort basis; a cleanup failure never replaces the primary error.
+
 The shell, not mq, performs ordinary glob expansion. A future explicit glob
 option may provide cross-platform behavior.
 

@@ -5,10 +5,6 @@ Todo files do not have statuses: when work is complete, delete its file and its
 index entry instead of marking it completed. Keep descriptions to one line and
 reorder the index whenever implementation evidence changes the priorities.
 
-## Source-local edits
-
-- [Verify write failure safety](todo/verify-write-failure-safety.md) — Inject failures to prove original files survive unsuccessful writes.
-
 ## Schemas
 
 - [Load schemas strictly](todo/load-schemas-strictly.md) — Define the meta-schema and reject unknown or malformed schema input.
