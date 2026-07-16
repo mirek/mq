@@ -1,6 +1,7 @@
 import { RE2JS } from "re2js";
 
 import type { Diagnostic } from "./diagnostic.ts";
+import { jsonSchemaCompileError } from "./json-schema.ts";
 import { compileSelector } from "./selector.ts";
 import { failure, success, type Result } from "./result.ts";
 import { sourcePosition, sourceRange, type SourceRange } from "./source.ts";
@@ -495,6 +496,16 @@ class SchemaValidator {
     const frontmatter = this.property(this.root, this.rootNode, "frontmatter");
     if (frontmatter.value !== undefined && !isObject(frontmatter.value)) {
       this.add("schema.type", "Frontmatter JSON Schema must be an object.", ["frontmatter"], frontmatter.node);
+    } else if (frontmatter.value !== undefined) {
+      const message = jsonSchemaCompileError(frontmatter.value);
+      if (message !== undefined) {
+        this.add(
+          "schema.frontmatter-schema",
+          `Invalid or non-local frontmatter JSON Schema: ${message}`,
+          ["frontmatter"],
+          frontmatter.node,
+        );
+      }
     }
     const rules = this.property(this.root, this.rootNode, "rules");
     if (rules.value === undefined) {
@@ -898,4 +909,17 @@ export const loadSchema = (
   const [first, ...rest] = validator.diagnostics;
   if (first !== undefined) return failure(first, ...rest);
   return success(deepFreeze(value) as unknown as MarkdownSchema);
+};
+
+/** Internal strict JSON parser shared by JSON frontmatter decoding. */
+export const parseJsonValue = (
+  source: string,
+  options: SchemaLoadOptions = {},
+): Result<JsonValue> => {
+  try {
+    return success(deepFreeze(new JsonReader(source).parse().value));
+  } catch (error) {
+    if (!(error instanceof JsonSourceError)) throw error;
+    return failure(sourceDiagnostic(error, source, options));
+  }
 };

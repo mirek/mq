@@ -22,8 +22,9 @@ and composable planners cover replace/remove, before/after, prepend/append,
 titles, ATX levels, and task checks. The library can apply a planned transaction
 to a new immutable, reparsed document with an immediate source map; CLI writes
 support explicit atomic output and in-place mode preservation. Schemas now have
-a strict, versioned, immutable loader and deterministic structural rule engine;
-the public validation adapter remains under implementation.
+a strict, versioned loader, portable YAML/TOML/JSON frontmatter decoding, and a
+deterministic structural and JSON Schema rule engine; the public validation
+adapter remains under implementation.
 
 ```ts
 import {

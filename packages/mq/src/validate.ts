@@ -2,6 +2,8 @@ import { RE2JS } from "re2js";
 
 import type { Diagnostic, DiagnosticNote } from "./diagnostic.ts";
 import { nodeMarkdown } from "./expression.ts";
+import { decodeFrontmatter } from "./frontmatter.ts";
+import { validateJsonSchema } from "./json-schema.ts";
 import type { Document, MarkdownNode } from "./model.ts";
 import {
   compileSelector,
@@ -122,6 +124,33 @@ export const validateSchema = (
         );
       }
       previous = level;
+    }
+  }
+
+  if (schema.frontmatter !== undefined) {
+    const nodes = select(document, selector("frontmatter"));
+    for (const node of nodes) {
+      if (node.type !== "frontmatter") continue;
+      const decoded = decodeFrontmatter(
+        node,
+        document.path === undefined ? {} : { path: document.path },
+      );
+      if (!decoded.ok) {
+        for (const value of decoded.diagnostics) {
+          ordered.push({ diagnostic: value, rule: -1, serial: serial++ });
+        }
+        continue;
+      }
+      for (const error of validateJsonSchema(schema.frontmatter, decoded.value)) {
+        const location = error.instancePath.length === 0 ? "/" : error.instancePath;
+        add(
+          "schema.frontmatter",
+          `Frontmatter ${location} fails ${JSON.stringify(error.keyword)}: ${error.message ?? "invalid value"}.`,
+          node,
+          -1,
+          undefined,
+        );
+      }
     }
   }
 
