@@ -85,6 +85,19 @@ export interface SchemaLoadOptions {
   readonly path?: string;
 }
 
+export interface SchemaSourceMetadata {
+  readonly path?: string;
+  readonly rules: readonly (SourceRange | undefined)[];
+  readonly options?: SourceRange;
+  readonly frontmatter?: SourceRange;
+}
+
+const schemaMetadata = new WeakMap<MarkdownSchema, SchemaSourceMetadata>();
+
+export const schemaSourceMetadata = (
+  schema: MarkdownSchema,
+): SchemaSourceMetadata | undefined => schemaMetadata.get(schema);
+
 const deepFreeze = <T>(value: T): T => {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) deepFreeze(child);
@@ -908,7 +921,27 @@ export const loadSchema = (
   const validator = new SchemaValidator(value, node, source, options).validate();
   const [first, ...rest] = validator.diagnostics;
   if (first !== undefined) return failure(first, ...rest);
-  return success(deepFreeze(value) as unknown as MarkdownSchema);
+  const loaded = deepFreeze(value) as unknown as MarkdownSchema;
+  const rulesNode = node?.properties?.get("rules");
+  const metadata: SchemaSourceMetadata = deepFreeze({
+    ...(options.path === undefined ? {} : { path: options.path }),
+    rules: Object.freeze(
+      loaded.rules.map((_, index) => {
+        const ruleNode = rulesNode?.items?.[index];
+        return source === undefined || ruleNode === undefined
+          ? undefined
+          : jsonRange(source, ruleNode);
+      }),
+    ),
+    ...(source === undefined || node?.properties?.get("options") === undefined
+      ? {}
+      : { options: jsonRange(source, node.properties.get("options")!) }),
+    ...(source === undefined || node?.properties?.get("frontmatter") === undefined
+      ? {}
+      : { frontmatter: jsonRange(source, node.properties.get("frontmatter")!) }),
+  });
+  schemaMetadata.set(loaded, metadata);
+  return success(loaded);
 };
 
 /** Internal strict JSON parser shared by JSON frontmatter decoding. */

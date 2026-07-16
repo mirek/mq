@@ -13,7 +13,12 @@ import {
   select,
   type CompiledSelector,
 } from "./selector.ts";
-import type { MarkdownSchema, MarkdownSchemaRule, SchemaChildrenConstraint } from "./schema.ts";
+import {
+  schemaSourceMetadata,
+  type MarkdownSchema,
+  type MarkdownSchemaRule,
+  type SchemaChildrenConstraint,
+} from "./schema.ts";
 
 interface OrderedDiagnostic {
   readonly diagnostic: Diagnostic;
@@ -92,6 +97,7 @@ export const validateSchema = (
   schema: MarkdownSchema,
 ): readonly Diagnostic[] => {
   const ordered: OrderedDiagnostic[] = [];
+  const metadata = schemaSourceMetadata(schema);
   let serial = 0;
   const add = (
     code: string,
@@ -101,8 +107,20 @@ export const validateSchema = (
     rule: MarkdownSchemaRule | undefined,
     notes: readonly DiagnosticNote[] = [],
   ): void => {
+    const ruleRange = ruleIndex < 0 ? undefined : metadata?.rules[ruleIndex];
+    const contextualNotes =
+      ruleIndex < 0 || metadata === undefined
+        ? notes
+        : [
+            ...notes,
+            Object.freeze({
+              message: `Schema rule ${ruleIndex + 1} is defined here.`,
+              ...(metadata.path === undefined ? {} : { path: metadata.path }),
+              ...(ruleRange === undefined ? {} : { range: ruleRange }),
+            }),
+          ];
     ordered.push({
-      diagnostic: diagnostic(code, message, node, document, rule, notes),
+      diagnostic: diagnostic(code, message, node, document, rule, contextualNotes),
       rule: ruleIndex,
       serial: serial++,
     });
@@ -179,22 +197,22 @@ export const validateSchema = (
     for (const node of matches) {
       const text = schemaNodeText(node);
       if (rule.text?.minLength !== undefined && [...text].length < rule.text.minLength) {
-        add("schema.text-min-length", `Plain text must contain at least ${rule.text.minLength} characters.`, node, ruleIndex, rule);
+        add("schema.text-min-length", `Plain text has ${[...text].length} characters; expected at least ${rule.text.minLength}.`, node, ruleIndex, rule);
       }
       if (rule.text?.maxLength !== undefined && [...text].length > rule.text.maxLength) {
-        add("schema.text-max-length", `Plain text must contain at most ${rule.text.maxLength} characters.`, node, ruleIndex, rule);
+        add("schema.text-max-length", `Plain text has ${[...text].length} characters; expected at most ${rule.text.maxLength}.`, node, ruleIndex, rule);
       }
       if (rule.text?.pattern !== undefined && !pattern(rule.text.pattern).test(text)) {
-        add("schema.text-pattern", "Plain text does not match the required pattern.", node, ruleIndex, rule);
+        add("schema.text-pattern", `Plain text does not match pattern ${JSON.stringify(rule.text.pattern)}.`, node, ruleIndex, rule);
       }
       if (rule.text?.enum !== undefined && !rule.text.enum.includes(text)) {
-        add("schema.text-enum", "Plain text is not one of the allowed values.", node, ruleIndex, rule);
+        add("schema.text-enum", `Plain text ${JSON.stringify(text)} is not one of ${JSON.stringify(rule.text.enum)}.`, node, ruleIndex, rule);
       }
       if (
         rule.markdown?.pattern !== undefined &&
         !pattern(rule.markdown.pattern).test(nodeMarkdown(document, node))
       ) {
-        add("schema.markdown-pattern", "Markdown does not match the required pattern.", node, ruleIndex, rule);
+        add("schema.markdown-pattern", `Markdown does not match pattern ${JSON.stringify(rule.markdown.pattern)}.`, node, ruleIndex, rule);
       }
       for (const name of rule.attributes?.required ?? []) {
         if (schemaNodeAttribute(node, name) === undefined) {
@@ -202,8 +220,9 @@ export const validateSchema = (
         }
       }
       for (const [name, expected] of Object.entries(rule.attributes?.equals ?? {})) {
-        if (schemaNodeAttribute(node, name) !== expected) {
-          add("schema.attribute-equals", `Attribute ${JSON.stringify(name)} does not equal the required value.`, node, ruleIndex, rule);
+        const actual = schemaNodeAttribute(node, name);
+        if (actual !== expected) {
+          add("schema.attribute-equals", `Attribute ${JSON.stringify(name)} is ${JSON.stringify(actual)}; expected ${JSON.stringify(expected)}.`, node, ruleIndex, rule);
         }
       }
       for (const [name, range] of Object.entries(rule.attributes?.ranges ?? {})) {
@@ -213,7 +232,8 @@ export const validateSchema = (
           (range.min !== undefined && actual < range.min) ||
           (range.max !== undefined && actual > range.max)
         ) {
-          add("schema.attribute-range", `Attribute ${JSON.stringify(name)} is outside the required range.`, node, ruleIndex, rule);
+          const bounds = `${range.min === undefined ? "-∞" : range.min}..${range.max === undefined ? "+∞" : range.max}`;
+          add("schema.attribute-range", `Attribute ${JSON.stringify(name)} is ${JSON.stringify(actual)}; expected range ${bounds}.`, node, ruleIndex, rule);
         }
       }
       if (rule.children !== undefined) {
