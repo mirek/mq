@@ -41,6 +41,32 @@ const assertResult = (
 };
 
 describe("mq query CLI", () => {
+  it("prints stable help without reading input", () => {
+    const help = [
+      "Usage: mq [options] [expression] [file ...]",
+      "",
+      "Query Markdown documents as ordered value streams.",
+      "",
+      "Arguments:",
+      "  expression                 Query expression (default: .)",
+      "  file ...                   Input files; omit for stdin, - also means stdin",
+      "",
+      "Options:",
+      "  -r, --raw-output           Write strings without JSON quoting",
+      "  -j, --json                 Encode every result as canonical JSON",
+      "  -q, --quiet                Suppress results",
+      "  -n, --null-input           Evaluate one empty document without reading input",
+      "      --fail-empty           Exit 1 when an input emits no values",
+      "      --color <policy>       auto, always, or never (default: auto)",
+      "      --diagnostics <format> human or json (default: human)",
+      "  -h, --help                 Show this help",
+      "",
+    ].join("\n");
+
+    assertResult(run(["--help"], "ignored"), 0, help, "");
+    assertResult(run(["-h"], "ignored"), 0, help, "");
+  });
+
   it("reads stdin and emits the default document as exact Markdown", () => {
     assertResult(run([], "# Café 😀\r\nbody"), 0, "# Café 😀\r\nbody", "");
     assertResult(run([".", "-"], "# Explicit\n"), 0, "# Explicit\n", "");

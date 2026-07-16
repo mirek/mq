@@ -32,10 +32,8 @@ if (parsed.ok && compiled.ok && expression.ok) {
 }
 ```
 
-```sh
-printf '# Guide\n' | mq 'select("heading") | text' --raw-output
-mq 'select("section[level=2]")' README.md
-```
+See [Query workflows](docs/query-workflows.md) for executable examples covering
+stdin, files, Markdown, text, JSON, collection, and error handling.
 
 Read [SPEC.md](./SPEC.md) for the product and language design, then
 [TODO.md](./TODO.md) for the prioritized remaining work.

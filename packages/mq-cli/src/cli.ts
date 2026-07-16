@@ -23,6 +23,7 @@ interface CliOptions {
   quiet: boolean;
   nullInput: boolean;
   failEmpty: boolean;
+  help: boolean;
   color: ColorPolicy;
   diagnostics: DiagnosticFormat;
 }
@@ -52,6 +53,7 @@ const optionsDefaults = (): CliOptions => ({
   quiet: false,
   nullInput: false,
   failEmpty: false,
+  help: false,
   color: "auto",
   diagnostics: "human",
 });
@@ -108,6 +110,8 @@ const parseArguments = (
       options.nullInput = true;
     } else if (name === "--fail-empty") {
       options.failEmpty = true;
+    } else if (name === "-h" || name === "--help") {
+      options.help = true;
     } else if (name === "--color") {
       const parsed = optionValue(args, index, name, inline);
       index = parsed.index;
@@ -152,6 +156,27 @@ const cliDiagnostic = (
     message,
     ...(path === undefined ? {} : { path }),
   });
+
+const help = [
+  "Usage: mq [options] [expression] [file ...]",
+  "",
+  "Query Markdown documents as ordered value streams.",
+  "",
+  "Arguments:",
+  "  expression                 Query expression (default: .)",
+  "  file ...                   Input files; omit for stdin, - also means stdin",
+  "",
+  "Options:",
+  "  -r, --raw-output           Write strings without JSON quoting",
+  "  -j, --json                 Encode every result as canonical JSON",
+  "  -q, --quiet                Suppress results",
+  "  -n, --null-input           Evaluate one empty document without reading input",
+  "      --fail-empty           Exit 1 when an input emits no values",
+  "      --color <policy>       auto, always, or never (default: auto)",
+  "      --diagnostics <format> human or json (default: human)",
+  "  -h, --help                 Show this help",
+  "",
+].join("\n");
 
 const usesColor = (policy: ColorPolicy): boolean =>
   policy === "always" || (policy === "auto" && process.stderr.isTTY === true);
@@ -214,6 +239,10 @@ const main = async (args: readonly string[]): Promise<number> => {
     if (!(error instanceof CliUsageError)) throw error;
     writeDiagnostics([cliDiagnostic("cli.usage", error.message)], options);
     return 2;
+  }
+  if (options.help) {
+    process.stdout.write(help);
+    return 0;
   }
 
   const compiled = compileExpression(parsedArguments.expression);

@@ -5,10 +5,6 @@ Todo files do not have statuses: when work is complete, delete its file and its
 index entry instead of marking it completed. Keep descriptions to one line and
 reorder the index whenever implementation evidence changes the priorities.
 
-## Query CLI
-
-- [Document query workflows](todo/document-query-workflows.md) — Ship help text and executable end-user query examples.
-
 ## Complete Markdown and selectors
 
 - [Support CommonMark blocks](todo/support-commonmark-blocks.md) — Add the remaining CommonMark block forms and lazy inline views.
