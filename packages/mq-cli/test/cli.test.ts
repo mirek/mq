@@ -66,6 +66,7 @@ describe("mq query CLI", () => {
       "  -n, --null-input           Evaluate one empty document without reading input",
       "  -w, --write                Atomically replace each named input file",
       "  -o, --output <path>        Atomically write one document result",
+      "      --schema <path>        Validate documents before output or writes",
       "      --fail-empty           Exit 1 when an input emits no values",
       "      --color <policy>       auto, always, or never (default: auto)",
       "      --diagnostics <format> human or json (default: human)",
@@ -328,6 +329,101 @@ describe("mq query CLI", () => {
       readdirSync(directory).filter((name) => name.includes(".mq-")),
       [],
     );
+  });
+
+  it("gates query output and writes on one shared schema", () => {
+    writeFileSync(
+      join(directory, "gate-schema.json"),
+      JSON.stringify({
+        $schema: "https://prelude.dev/mq/schema/v1",
+        rules: [{ selector: "heading", text: { enum: ["Valid"] } }],
+      }),
+    );
+    writeFileSync(join(directory, "gate-valid.md"), "# Valid\n");
+    writeFileSync(join(directory, "gate-invalid.md"), "# Invalid\r\nbody");
+    writeFileSync(join(directory, "destination.md"), "preserved destination");
+
+    assertResult(
+      run([
+        "--schema",
+        "gate-schema.json",
+        'select("heading") | text',
+        "gate-valid.md",
+      ]),
+      0,
+      '"Valid"\n',
+      "",
+    );
+
+    const invalidQuery = run([
+      "--schema=gate-schema.json",
+      'select("heading") | text',
+      "gate-valid.md",
+      "gate-invalid.md",
+    ]);
+    assert.equal(invalidQuery.status, 1);
+    assert.equal(invalidQuery.stdout, "");
+    assert.match(invalidQuery.stderr, /gate-invalid\.md:1:1: error\[schema\.text-enum\]/u);
+
+    const invalidWrite = run([
+      "--schema",
+      "gate-schema.json",
+      "--write",
+      ".",
+      "gate-invalid.md",
+    ]);
+    assert.equal(invalidWrite.status, 1);
+    assert.equal(readFileSync(join(directory, "gate-invalid.md"), "utf8"), "# Invalid\r\nbody");
+    assert.deepEqual(
+      readdirSync(directory).filter((name) => name.includes(".mq-")),
+      [],
+    );
+
+    const validInode = statSync(join(directory, "gate-valid.md")).ino;
+    const mixedWrite = run([
+      "--schema",
+      "gate-schema.json",
+      "--write",
+      ".",
+      "gate-valid.md",
+      "gate-invalid.md",
+    ]);
+    assert.equal(mixedWrite.status, 1);
+    assert.equal(statSync(join(directory, "gate-valid.md")).ino, validInode);
+
+    const invalidOutput = run([
+      "--schema",
+      "gate-schema.json",
+      "--output",
+      "destination.md",
+      ".",
+      "gate-invalid.md",
+    ]);
+    assert.equal(invalidOutput.status, 1);
+    assert.equal(readFileSync(join(directory, "destination.md"), "utf8"), "preserved destination");
+
+    writeFileSync(join(directory, "bad-schema.json"), "{");
+    assert.equal(
+      run([
+        "--schema",
+        "bad-schema.json",
+        "--write",
+        ".",
+        "gate-invalid.md",
+      ]).status,
+      2,
+    );
+    assert.equal(
+      run([
+        "--schema",
+        "missing-gate-schema.json",
+        "--write",
+        ".",
+        "gate-invalid.md",
+      ]).status,
+      3,
+    );
+    assert.equal(readFileSync(join(directory, "gate-invalid.md"), "utf8"), "# Invalid\r\nbody");
   });
 
   it("returns stable human and JSON expression diagnostics", () => {
