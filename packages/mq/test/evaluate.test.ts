@@ -4,7 +4,10 @@ import { describe, it } from "node:test";
 import {
   compileExpression,
   evaluate,
+  isMarkdownNode,
+  nodeMarkdown,
   parse,
+  toJsonValue,
   type Document,
   type QueryValue,
 } from "../src/index.ts";
@@ -196,5 +199,20 @@ describe("expression evaluation", () => {
       () => evaluate(document, { source: "." }),
       /expression must be produced by compileExpression/,
     );
+  });
+
+  it("exposes the evaluator's node output contracts to adapters", () => {
+    const document = parseDocument(source);
+    const heading = document.sections[0]!.sections[0]!.heading;
+
+    assert.equal(isMarkdownNode(heading), true);
+    assert.equal(isMarkdownNode("heading"), false);
+    assert.equal(nodeMarkdown(document, heading), "## Two 😀\n");
+    assert.deepEqual(toJsonValue(document, heading), {
+      level: 2,
+      style: "atx",
+      title: "Two 😀",
+      type: "heading",
+    });
   });
 });

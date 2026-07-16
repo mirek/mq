@@ -7,8 +7,9 @@ programs.
 The public package currently provides foundational document contracts, lossless
 block recognition, heading-derived section trees, byte-identical rendering of
 unchanged documents, compiled core selectors, and deterministic query
-expression streams. Editing, validation, and CLI behavior remain under
-implementation.
+expression streams. The read-only CLI supports stdin and file queries, raw and
+JSON output, quiet and fail-empty modes, and human or JSON diagnostics. Editing
+and validation remain under implementation.
 
 ```ts
 import {
@@ -29,6 +30,11 @@ if (parsed.ok && compiled.ok && expression.ok) {
   const markdown = evaluate(parsed.value, expression.value);
   console.log(sections, markdown, render(parsed.value));
 }
+```
+
+```sh
+printf '# Guide\n' | mq 'select("heading") | text' --raw-output
+mq 'select("section[level=2]")' README.md
 ```
 
 Read [SPEC.md](./SPEC.md) for the product and language design, then
