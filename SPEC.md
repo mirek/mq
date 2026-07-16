@@ -613,7 +613,32 @@ source ranges and concrete parser nodes are deliberately excluded:
 | text inline | `type`, `value` |
 | opaque block or inline | `type`, `reason`, exact `markdown` |
 
-### 7.2 Edit built-ins
+### 7.2 Source patches
+
+`SourcePatch` is a half-open original `SourceRange` plus replacement text.
+`planSourcePatches(source, patches)` validates that every position exactly
+matches a UTF-8 boundary and line/column coordinate in that source, copies and
+sorts patches by original start then end, and returns an immutable opaque plan.
+`applySourcePatches(plan)` accepts only such a plan and returns immutable output
+text, its UTF-8 byte length, and a source map.
+
+Non-empty ranges conflict when their half-open intervals overlap. Two
+insertions at the same byte, or an insertion at the start of a non-empty patch,
+are ambiguous because their output order has no declared affinity. An insertion
+at a non-empty patch's end is allowed and follows that replacement. Adjacent
+non-empty ranges are allowed. Conflicts fail planning with
+`edit.patch-overlap` or `edit.patch-ambiguity`, include both original ranges as
+notes, and cannot produce output. Invalid or foreign coordinates use
+`edit.range`.
+
+The source map is an ordered partition into `retained` and `replacement`
+segments. Every segment records an original and generated range. Deletions have
+a zero-width generated range; insertions have a zero-width original range.
+Retained segments are copied exactly, while replacement segments make no
+character-level mapping claim. Both application and map generation are linear
+after the plan's O(p log p) sort.
+
+### 7.3 Edit built-ins
 
 Edit expressions consume a document and emit one edited document:
 
@@ -647,7 +672,7 @@ append("section[title='Examples']", markdown("\n```ts\nrun()\n```\n"))
 Moving and copying nodes are deferred until identity and overlap semantics have
 been exercised by the initial edit set.
 
-### 7.3 Formatting inserted content
+### 7.4 Formatting inserted content
 
 Existing source is never normalized. Inserted fragments use their supplied
 spelling where possible. The edit planner may add only the minimum boundary
@@ -724,7 +749,7 @@ interface Diagnostic {
   readonly code: string;
   readonly severity: "error" | "warning";
   readonly message: string;
-  readonly source?: "markdown" | "selector" | "expression" | "schema";
+  readonly source?: "markdown" | "selector" | "expression" | "edit" | "schema";
   readonly path?: string;
   readonly range?: SourceRange;
   readonly notes?: readonly DiagnosticNote[];

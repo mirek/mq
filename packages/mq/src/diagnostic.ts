@@ -6,6 +6,7 @@ export type DiagnosticSource =
   | "markdown"
   | "selector"
   | "expression"
+  | "edit"
   | "schema";
 
 export interface DiagnosticNote {

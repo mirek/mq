@@ -79,3 +79,11 @@ export type {
   SourceRange,
   SourceText,
 } from "./source.ts";
+export { applySourcePatches, planSourcePatches } from "./source-patch.ts";
+export type {
+  PatchedSource,
+  SourceMap,
+  SourceMapSegment,
+  SourcePatch,
+  SourcePatchPlan,
+} from "./source-patch.ts";
