@@ -75,6 +75,8 @@ pnpm build
 
 See [Reproducible fuzz campaigns](docs/fuzzing.md) for the fixed seed, bounds,
 invariants, and regression-retention workflow.
+See [Performance and finite defaults](docs/performance.md) for the benchmark
+command, dated baseline, exported limits, and their rationale.
 
 The workspace installs its own `mq` binary at `node_modules/.bin/mq` so the test
 suite verifies the published library boundary and CLI adapter against the same

@@ -2,6 +2,7 @@ import { RE2JS } from "re2js";
 
 import type { Diagnostic } from "./diagnostic.ts";
 import { jsonSchemaCompileError } from "./json-schema.ts";
+import { resourceLimits } from "./resource-limits.ts";
 import { compileSelector } from "./selector.ts";
 import { failure, success, type Result } from "./result.ts";
 import { sourcePosition, sourceRange, type SourceRange } from "./source.ts";
@@ -226,12 +227,15 @@ interface ParsedJson {
 }
 
 class JsonSourceError extends Error {
-  readonly code: "schema.json-duplicate-key" | "schema.json-syntax";
+  readonly code:
+    | "schema.json-duplicate-key"
+    | "schema.json-syntax"
+    | "schema.limit";
   readonly start: number;
   readonly end: number;
 
   constructor(
-    code: "schema.json-duplicate-key" | "schema.json-syntax",
+    code: "schema.json-duplicate-key" | "schema.json-syntax" | "schema.limit",
     message: string,
     start: number,
     end: number,
@@ -246,6 +250,8 @@ class JsonSourceError extends Error {
 class JsonReader {
   private offset = 0;
   private readonly source: string;
+  private depth = 0;
+  private values = 0;
 
   constructor(source: string) {
     this.source = source;
@@ -271,10 +277,19 @@ class JsonReader {
   }
 
   private value(): ParsedJson {
+    this.values += 1;
+    if (this.values > resourceLimits.schema.maxValues) {
+      throw new JsonSourceError(
+        "schema.limit",
+        `Schemas are limited to ${resourceLimits.schema.maxValues} JSON values.`,
+        this.offset,
+        Math.min(this.offset + 1, this.source.length),
+      );
+    }
     this.whitespace();
     const character = this.source[this.offset];
-    if (character === "{") return this.object();
-    if (character === "[") return this.array();
+    if (character === "{") return this.container(() => this.object());
+    if (character === "[") return this.container(() => this.array());
     if (character === '"') {
       const string = this.string();
       return { value: string.value, node: string.node };
@@ -283,6 +298,23 @@ class JsonReader {
     if (character === "f") return this.literal("false", false);
     if (character === "n") return this.literal("null", null);
     return this.number();
+  }
+
+  private container<T>(parse: () => T): T {
+    this.depth += 1;
+    if (this.depth > resourceLimits.schema.maxDepth) {
+      throw new JsonSourceError(
+        "schema.limit",
+        `Schemas are limited to nesting depth ${resourceLimits.schema.maxDepth}.`,
+        this.offset,
+        Math.min(this.offset + 1, this.source.length),
+      );
+    }
+    try {
+      return parse();
+    } finally {
+      this.depth -= 1;
+    }
   }
 
   private object(): ParsedJson {
@@ -526,7 +558,19 @@ class SchemaValidator {
     } else if (!Array.isArray(rules.value)) {
       this.add("schema.type", "Rules must be an array.", ["rules"], rules.node);
     } else {
-      rules.value.forEach((rule, index) => this.validateRule(rule, rules.node?.items?.[index], index));
+      if (rules.value.length > resourceLimits.schema.maxRules) {
+        this.add(
+          "schema.limit",
+          `Schemas are limited to ${resourceLimits.schema.maxRules} rules.`,
+          ["rules"],
+          rules.node,
+        );
+      }
+      rules.value
+        .slice(0, resourceLimits.schema.maxRules)
+        .forEach((rule, index) =>
+          this.validateRule(rule, rules.node?.items?.[index], index),
+        );
     }
     return this;
   }
@@ -813,6 +857,11 @@ class SchemaValidator {
   }
 
   private add(code: string, message: string, at: readonly (number | string)[], node: JsonNode | undefined): void {
+    if (this.diagnostics.length >= resourceLimits.schema.maxDiagnostics) return;
+    if (this.diagnostics.length === resourceLimits.schema.maxDiagnostics - 1) {
+      code = "schema.diagnostic-limit";
+      message = `Stopped reporting schema diagnostics after ${resourceLimits.schema.maxDiagnostics} entries.`;
+    }
     const diagnostic: Diagnostic = {
       code,
       severity: "error",
@@ -827,18 +876,38 @@ class SchemaValidator {
 
 class TypedJsonError extends Error {
   readonly at: readonly (number | string)[];
+  readonly code: "schema.limit" | "schema.type";
 
-  constructor(at: readonly (number | string)[], message: string) {
+  constructor(
+    at: readonly (number | string)[],
+    message: string,
+    code: "schema.limit" | "schema.type" = "schema.type",
+  ) {
     super(message);
     this.at = at;
+    this.code = code;
   }
+}
+
+interface TypedJsonState {
+  depth: number;
+  values: number;
 }
 
 const typedJson = (
   input: unknown,
   at: readonly (number | string)[] = [],
   ancestors: ReadonlySet<object> = new Set(),
+  state: TypedJsonState = { depth: 0, values: 0 },
 ): JsonValue => {
+  state.values += 1;
+  if (state.values > resourceLimits.schema.maxValues) {
+    throw new TypedJsonError(
+      at,
+      `Schemas are limited to ${resourceLimits.schema.maxValues} JSON values.`,
+      "schema.limit",
+    );
+  }
   if (input === null || typeof input === "string" || typeof input === "boolean") return input;
   if (typeof input === "number") {
     if (!Number.isFinite(input)) throw new TypedJsonError(at, "Numbers must be finite.");
@@ -846,8 +915,22 @@ const typedJson = (
   }
   if (typeof input !== "object") throw new TypedJsonError(at, "Values must be portable JSON data.");
   if (ancestors.has(input)) throw new TypedJsonError(at, "Schema input must not contain cycles.");
+  state.depth += 1;
+  if (state.depth > resourceLimits.schema.maxDepth) {
+    throw new TypedJsonError(
+      at,
+      `Schemas are limited to nesting depth ${resourceLimits.schema.maxDepth}.`,
+      "schema.limit",
+    );
+  }
   const next = new Set(ancestors).add(input);
-  if (Array.isArray(input)) return input.map((value, index) => typedJson(value, [...at, index], next));
+  if (Array.isArray(input)) {
+    const result = input.map((value, index) =>
+      typedJson(value, [...at, index], next, state),
+    );
+    state.depth -= 1;
+    return result;
+  }
   const prototype = Object.getPrototypeOf(input) as unknown;
   if (prototype !== Object.prototype && prototype !== null) {
     throw new TypedJsonError(at, "Objects must be plain JSON objects.");
@@ -864,10 +947,11 @@ const typedJson = (
     Object.defineProperty(result, key, {
       configurable: true,
       enumerable: true,
-      value: typedJson(descriptor.value, [...at, key], next),
+      value: typedJson(descriptor.value, [...at, key], next, state),
       writable: true,
     });
   }
+  state.depth -= 1;
   return result;
 };
 
@@ -902,6 +986,15 @@ export const loadSchema = (
   let source: string | undefined;
   if (typeof input === "string") {
     source = input;
+    if (Buffer.byteLength(input) > resourceLimits.schema.maxBytes) {
+      const error = new JsonSourceError(
+        "schema.limit",
+        `Schema source is limited to ${resourceLimits.schema.maxBytes} UTF-8 bytes.`,
+        0,
+        input.length,
+      );
+      return failure(sourceDiagnostic(error, input, options));
+    }
     try {
       const parsed = new JsonReader(input).parse();
       value = parsed.value;
@@ -916,7 +1009,7 @@ export const loadSchema = (
     } catch (error) {
       if (!(error instanceof TypedJsonError)) throw error;
       const diagnostic: Diagnostic = deepFreeze({
-        code: "schema.type",
+        code: error.code,
         severity: "error" as const,
         message: `At ${pointer(error.at)}: ${error.message}`,
         source: "schema" as const,
@@ -956,6 +1049,20 @@ export const parseJsonValue = (
   source: string,
   options: SchemaLoadOptions = {},
 ): Result<JsonValue> => {
+  if (Buffer.byteLength(source) > resourceLimits.schema.maxBytes) {
+    return failure(
+      sourceDiagnostic(
+        new JsonSourceError(
+          "schema.limit",
+          `JSON source is limited to ${resourceLimits.schema.maxBytes} UTF-8 bytes.`,
+          0,
+          source.length,
+        ),
+        source,
+        options,
+      ),
+    );
+  }
   try {
     return success(deepFreeze(new JsonReader(source).parse().value));
   } catch (error) {

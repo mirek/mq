@@ -1168,9 +1168,30 @@ The CLI uses the finite library defaults for byte, node, nesting-depth,
 diagnostic, and selector complexity limits. Source-limit recovery is reported as
 warnings rather than crashes and always retains the original bytes.
 
+The exported, deeply immutable `resourceLimits` object is the source of truth:
+
+| Area | Defaults |
+| --- | --- |
+| Markdown | 16 MiB source; 100,000 nodes; depth 128; 100 diagnostics |
+| selector | 64 KiB source; 64 list members; 256 steps/tests; nesting 16; regex 256 code units |
+| expression | 64 KiB source; 256 stages |
+| schema loading | 1 MiB source; depth 64; 100,000 JSON values; 256 rules; 100 diagnostics |
+| validation | 1,000 diagnostics |
+
+Excess expression or schema input fails with `expression.limit` or
+`schema.limit`; diagnostic truncation ends with `schema.diagnostic-limit`.
+Markdown retains its lossless opaque recovery behavior. These values admit
+large editor and build inputs while bounding worst-case semantic work. Tests pin
+every exported value and its rejection boundary.
+
 No 0.x throughput number is a compatibility promise. Benchmarks should include
 large generated documents, deeply nested blockquotes/lists, many headings, and
 adversarial selector patterns.
+
+`pnpm benchmark` measures seven-run medians for parse, select, unchanged render,
+edit/reparse, and validation across 100–10,000 headings and nesting depths
+8–96. The dated local baseline lives in `docs/performance.md`; measurements are
+informative until stable hosted-runner data justifies CI thresholds.
 
 ## 13. Compatibility and versioning
 

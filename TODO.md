@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Hardening and release
 
-- [Benchmark resource limits](todo/benchmark-resource-limits.md) — Measure performance and document finite production defaults.
 - [Verify package artifacts](todo/verify-package-artifacts.md) — Test exports, provenance, executable wiring, and clean installs from packed tarballs.
 - [Automate releases](todo/automate-releases.md) — Add release CI and a generated changelog policy.
 - [Ship executable examples](todo/ship-executable-examples.md) — Cover querying, modifying, creating, and validating in end-to-end fixtures.

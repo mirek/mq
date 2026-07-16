@@ -77,6 +77,7 @@ export type {
 export { inlines, parse } from "./parse.ts";
 export type { ParseLimits, ParseOptions } from "./parse.ts";
 export { render } from "./render.ts";
+export { resourceLimits } from "./resource-limits.ts";
 export { compileSelector, select } from "./selector.ts";
 export type { CompiledSelector, SelectOptions } from "./selector.ts";
 export { loadSchema, MQ_SCHEMA_V1, schemaMetaSchemaV1 } from "./schema.ts";
