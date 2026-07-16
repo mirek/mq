@@ -380,6 +380,33 @@ The default CLI expression is `. | markdown`. A bare selector is not an
 expression; requiring `select(...)` keeps selector syntax independently usable
 by schemas and the TypeScript API.
 
+Expression syntax is case-sensitive and uses this initial grammar, with
+whitespace permitted around every token:
+
+```text
+expression = stage ("|" stage)*
+stage      = "." | select | "markdown" | "text" | "json"
+           | "count" | "first" | "last" | "array"
+select     = "select" "(" json-string ")"
+```
+
+The `select` argument is one RFC 8259 JSON string. Expression compilation also
+compiles that string as a selector, so neither expression syntax nor nested
+selector syntax is reparsed during evaluation. Keywords do not accept call
+parentheses unless the grammar shows them.
+
+The core API exposes immutable compiled expressions for reuse:
+
+```ts
+const expression = compileExpression('select("heading") | text | array');
+```
+
+`compileExpression` consumes the complete source. Ordinary invalid expression
+or nested selector input returns an immutable failure result rather than
+throwing. Diagnostic ranges use expression-source coordinates and identify the
+unexpected token, missing-token insertion point, or complete selector string
+argument responsible for the failure.
+
 ### 7.2 Edit built-ins
 
 Edit expressions consume a document and emit one edited document:

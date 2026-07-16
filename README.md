@@ -7,15 +7,23 @@ programs.
 The public package currently provides foundational document contracts, lossless
 block recognition, heading-derived section trees, byte-identical rendering of
 unchanged documents, and compiled core selectors. Expression queries, editing,
-validation, and CLI behavior remain under implementation.
+validation, and CLI behavior remain under implementation; the initial query
+expression language can also be compiled for reuse ahead of evaluation.
 
 ```ts
-import { compileSelector, parse, render, select } from "@prelude/mq";
+import {
+  compileExpression,
+  compileSelector,
+  parse,
+  render,
+  select,
+} from "@prelude/mq";
 
 const parsed = parse("# Guide\n## Installation\nRun the installer.\n");
 const compiled = compileSelector("section[level=2]");
+const expression = compileExpression('select("section[level=2]") | markdown');
 
-if (parsed.ok && compiled.ok) {
+if (parsed.ok && compiled.ok && expression.ok) {
   const sections = select(parsed.value, compiled.value);
   console.log(sections, render(parsed.value));
 }

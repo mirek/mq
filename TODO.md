@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Query CLI
 
-- [Parse query expressions](todo/parse-query-expressions.md) — Parse the initial jq-like value, projection, collection, and pipeline expressions.
 - [Evaluate query streams](todo/evaluate-query-streams.md) — Execute expressions as ordered streams with deterministic value serialization.
 - [Build query CLI](todo/build-query-cli.md) — Add stdin/files, output modes, colors, diagnostics, and stable exit statuses.
 - [Verify API and CLI equivalence](todo/verify-api-cli-equivalence.md) — Prove that public library and CLI queries produce equivalent results.

@@ -9,6 +9,8 @@ export type {
   DiagnosticSeverity,
   DiagnosticSource,
 } from "./diagnostic.ts";
+export { compileExpression } from "./expression.ts";
+export type { CompiledExpression } from "./expression.ts";
 export type {
   BlankLine,
   Block,
