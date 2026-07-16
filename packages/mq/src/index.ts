@@ -16,6 +16,8 @@ export {
   nodeMarkdown,
   toJsonValue,
 } from "./expression.ts";
+export { parseMarkdownFragment, planFragmentInsertion } from "./fragment.ts";
+export type { MarkdownFragment } from "./fragment.ts";
 export type {
   CompiledExpression,
   QueryJsonObject,

@@ -679,6 +679,20 @@ spelling where possible. The edit planner may add only the minimum boundary
 newlines needed to make the fragment a valid sibling or child. It must preserve
 the target document's dominant newline style for generated boundary text.
 
+`parseMarkdownFragment(source)` reuses `parse` and returns an immutable fragment
+with its lossless document view. `planFragmentInsertion(document, fragment, at)`
+accepts an exact source position at the document start/end or a complete line
+boundary and returns one zero-width `SourcePatch`. Mid-line positions and the
+position between `\r` and `\n` fail with `edit.fragment-boundary`. Empty
+fragments are no-op patches.
+
+The fragment's bytes are never normalized. If a non-empty source side and the
+facing fragment side do not already contain a newline, planning adds exactly one
+newline. Generated boundaries use the document's dominant style, or LF when the
+document has no newline. Thus supplied LF inside a fragment remains LF even when
+generated boundaries are CRLF, and mixed-newline ties retain the parser's first
+encountered style.
+
 Heading levels in an inserted section remain exactly as supplied. A convenience
 operation for rebasing heading levels may be added later; implicit rebasing is
 forbidden.
