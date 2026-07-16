@@ -79,6 +79,25 @@ export type { ParseLimits, ParseOptions } from "./parse.ts";
 export { render } from "./render.ts";
 export { compileSelector, select } from "./selector.ts";
 export type { CompiledSelector, SelectOptions } from "./selector.ts";
+export { loadSchema, MQ_SCHEMA_V1, schemaMetaSchemaV1 } from "./schema.ts";
+export type {
+  JsonObject,
+  JsonPrimitive,
+  JsonValue,
+  MarkdownSchema,
+  MarkdownSchemaInput,
+  MarkdownSchemaOptions,
+  MarkdownSchemaRule,
+  SchemaAttributeConstraints,
+  SchemaAttributeRange,
+  SchemaChildrenConstraint,
+  SchemaCountConstraint,
+  SchemaExtensions,
+  SchemaLoadOptions,
+  SchemaMarkdownConstraint,
+  SchemaScalar,
+  SchemaTextConstraint,
+} from "./schema.ts";
 export { failure, success } from "./result.ts";
 export type {
   Failure,
