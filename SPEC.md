@@ -131,6 +131,12 @@ as source truth: mq retains the original source, computes its own UTF-8 ranges,
 owns immutable public nodes and section indexes, and renders exclusively from
 retained source. GFM behavior remains an explicit extension milestone.
 
+**Decision — GFM semantic extensions.** The same adapter enables
+`micromark-extension-gfm` 3.0.0 and `mdast-util-gfm` 3.1.0 together. This keeps
+tables, task items, strikethrough, and literal autolinks on the tokenizer and
+semantic tree versions designed to interoperate, without introducing another
+parser or serializer.
+
 ## 5. Document model
 
 ### 5.1 Source coordinates
@@ -226,6 +232,26 @@ interface CodeBlock {
   readonly fenced: boolean;
   readonly value: string;
 }
+
+interface Table {
+  readonly type: "table";
+  readonly alignments: readonly ("left" | "right" | "center" | undefined)[];
+  readonly children: readonly TableRow[];
+}
+
+interface TableRow {
+  readonly type: "row";
+  readonly header: boolean;
+  readonly children: readonly TableCell[];
+}
+
+interface TableCell {
+  readonly type: "cell";
+  readonly alignment: "left" | "right" | "center" | undefined;
+  readonly header: boolean;
+  readonly inlineRange: SourceRange;
+  readonly text: string;
+}
 ```
 
 `SourceText` retains the original string and UTF-8 byte length, an optional BOM
@@ -245,6 +271,10 @@ CommonMark paragraph and heading inline views include decoded text, emphasis,
 strong emphasis, inline code, hard breaks, links, images, and inline HTML.
 Links and images expose either decoded destinations and optional titles or a
 normalized reference identifier. Unsupported extension nodes remain opaque.
+GFM tables expose ordered rows and cells, per-column alignment, and header
+flags. Table cells participate in the same lazy `inlines` API as headings and
+paragraphs. Task-list markers populate `item.checked`; strikethrough is a
+recursive inline node; URL and email literals become ordinary link nodes.
 
 The document preamble contains blocks before the first heading. Those blocks are
 also the initial non-section entries in `document.children`. Frontmatter, when
@@ -498,6 +528,10 @@ source ranges and concrete parser nodes are deliberately excluded:
 | inline code | `type`, `value` |
 | link | `type`, destination or reference, optional title, recursive `children` |
 | image | `type`, `alt`, destination or reference, optional title |
+| table | `type`, alignments (`null` when absent), recursive `children` |
+| row | `type`, `header`, recursive `children` |
+| cell | `type`, optional `alignment`, `header`, projected `text` |
+| strikethrough | `type`, recursive `children` |
 | text inline | `type`, `value` |
 | opaque block or inline | `type`, `reason`, exact `markdown` |
 

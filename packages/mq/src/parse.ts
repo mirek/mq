@@ -1,4 +1,6 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
+import { gfmFromMarkdown } from "mdast-util-gfm";
+import { gfm } from "micromark-extension-gfm";
 import type {
   Heading as MdastHeading,
   ListItem as MdastListItem,
@@ -33,6 +35,11 @@ import type {
   Paragraph,
   Section,
   Strong,
+  Strikethrough,
+  Table,
+  TableAlignment,
+  TableCell,
+  TableRow,
   ThematicBreak,
 } from "./model.ts";
 import { success, type Result } from "./result.ts";
@@ -381,7 +388,11 @@ const convertInline = (
     return Object.freeze({ type: "text", range, concrete, value: node.value });
   }
 
-  if (node.type === "emphasis" || node.type === "strong") {
+  if (
+    node.type === "emphasis" ||
+    node.type === "strong" ||
+    node.type === "delete"
+  ) {
     const children = frozenArray(
       node.children.map((child) => convertInline(child, context)),
     );
@@ -397,6 +408,19 @@ const convertInline = (
         concrete,
         children,
       }) satisfies Emphasis;
+    }
+    if (node.type === "delete") {
+      const concrete = concreteNode(
+        "strikethrough",
+        range,
+        children.map((child) => child.concrete),
+      );
+      return Object.freeze({
+        type: "strikethrough",
+        range,
+        concrete,
+        children,
+      }) satisfies Strikethrough;
     }
     const concrete = concreteNode(
       "strong",
@@ -606,6 +630,29 @@ const convertListItem = (
   });
 };
 
+const convertTableCell = (
+  node: MdastRootContent & { readonly type: "tableCell" },
+  context: CommonMarkContext,
+  alignment: TableAlignment,
+  header: boolean,
+): TableCell => {
+  const range = nodeRange(node, context);
+  const concrete = concreteNode("cell", range);
+  return registerInlineProgram(
+    Object.freeze({
+      type: "cell",
+      range,
+      concrete,
+      alignment,
+      header,
+      inlineRange: inlineRange(node.children, range, context),
+      text: phrasingText(node.children),
+    }),
+    node.children,
+    context,
+  );
+};
+
 const convertFlow = (
   node: MdastRootContent,
   context: CommonMarkContext,
@@ -696,6 +743,51 @@ const convertFlow = (
     }) satisfies ThematicBreak;
   }
 
+  if (node.type === "table") {
+    const alignments = frozenArray(
+      (node.align ?? []).map((alignment) => alignment ?? undefined),
+    );
+    const children = frozenArray(
+      node.children.map((row, rowIndex): TableRow => {
+        const rowRange = nodeRange(row, context);
+        const cells = frozenArray(
+          row.children.map((cell, cellIndex) =>
+            convertTableCell(
+              cell,
+              context,
+              alignments[cellIndex],
+              rowIndex === 0,
+            ),
+          ),
+        );
+        const rowConcrete = concreteNode(
+          "row",
+          rowRange,
+          cells.map((cell) => cell.concrete),
+        );
+        return Object.freeze({
+          type: "row",
+          range: rowRange,
+          concrete: rowConcrete,
+          header: rowIndex === 0,
+          children: cells,
+        });
+      }),
+    );
+    const concrete = concreteNode(
+      "table",
+      range,
+      children.map((row) => row.concrete),
+    );
+    return Object.freeze({
+      type: "table",
+      range,
+      concrete,
+      alignments,
+      children,
+    }) satisfies Table;
+  }
+
   return opaqueBlock(node, context, range);
 };
 
@@ -728,7 +820,10 @@ const parseBlocks = (
     ...(path === undefined ? {} : { path }),
     diagnostics,
   };
-  const tree = fromMarkdown(source.slice(contentStart));
+  const tree = fromMarkdown(source.slice(contentStart), {
+    extensions: [gfm()],
+    mdastExtensions: [gfmFromMarkdown()],
+  });
   const spans = tree.children.map((node) => {
     const [rawStart, rawEnd] = nodeOffsets(node, context);
     const startLine = node.position?.start.line;

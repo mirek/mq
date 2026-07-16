@@ -83,6 +83,34 @@ export interface ThematicBreak {
   readonly concrete: ConcreteNode<"thematic-break">;
 }
 
+export type TableAlignment = "left" | "right" | "center" | undefined;
+
+export interface Table {
+  readonly type: "table";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"table">;
+  readonly alignments: readonly TableAlignment[];
+  readonly children: readonly TableRow[];
+}
+
+export interface TableRow {
+  readonly type: "row";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"row">;
+  readonly header: boolean;
+  readonly children: readonly TableCell[];
+}
+
+export interface TableCell {
+  readonly type: "cell";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"cell">;
+  readonly alignment: TableAlignment;
+  readonly header: boolean;
+  readonly inlineRange: SourceRange;
+  readonly text: string;
+}
+
 export type Block =
   | Paragraph
   | BlankLine
@@ -92,6 +120,9 @@ export type Block =
   | CodeBlock
   | HtmlNode
   | ThematicBreak
+  | Table
+  | TableRow
+  | TableCell
   | OpaqueBlock;
 
 export type FlowNode = Heading | Block;
@@ -121,6 +152,13 @@ export interface Strong {
   readonly type: "strong";
   readonly range: SourceRange;
   readonly concrete: ConcreteNode<"strong">;
+  readonly children: readonly Inline[];
+}
+
+export interface Strikethrough {
+  readonly type: "strikethrough";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"strikethrough">;
   readonly children: readonly Inline[];
 }
 
@@ -161,6 +199,7 @@ export type Inline =
   | TextInline
   | Emphasis
   | Strong
+  | Strikethrough
   | InlineCode
   | BreakInline
   | Link
@@ -168,7 +207,7 @@ export type Inline =
   | HtmlNode
   | OpaqueInline;
 
-export type InlineContainer = Heading | Paragraph;
+export type InlineContainer = Heading | Paragraph | TableCell;
 
 export interface Section {
   readonly type: "section";

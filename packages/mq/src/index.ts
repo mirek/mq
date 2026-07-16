@@ -48,6 +48,11 @@ export type {
   Paragraph,
   Section,
   Strong,
+  Strikethrough,
+  Table,
+  TableAlignment,
+  TableCell,
+  TableRow,
   TextInline,
   ThematicBreak,
 } from "./model.ts";
