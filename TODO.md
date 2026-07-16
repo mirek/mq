@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Hardening and release
 
-- [Fuzz language boundaries](todo/fuzz-language-boundaries.md) — Fuzz Markdown, edits, selectors, expressions, and schemas for crashes and invariant violations.
 - [Benchmark resource limits](todo/benchmark-resource-limits.md) — Measure performance and document finite production defaults.
 - [Verify package artifacts](todo/verify-package-artifacts.md) — Test exports, provenance, executable wiring, and clean installs from packed tarballs.
 - [Automate releases](todo/automate-releases.md) — Add release CI and a generated changelog policy.

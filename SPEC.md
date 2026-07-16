@@ -1122,6 +1122,16 @@ Property tests should generate headings, block boundaries, delimiter spellings,
 and newline variants. Conformance fixtures should retain the original source and
 expected derived-tree snapshot together.
 
+The bounded language fuzz suite uses seed `0x6d71f022` for 512 Markdown/edit
+cases and 1,024 selector, expression, and schema cases under 15-second test
+timeouts. Markdown cases require exact parse/render identity; failed edits must
+leave the original snapshot unchanged, and successful edits must preserve every
+retained source-map byte range before reparsing. Language compilers must return
+ordinary invalid input as failure data, and accepted values are executed to
+cover evaluator boundaries. Schema cases include arbitrary syntax, recursively
+generated portable JSON, and typed rule skeletons. Every discovered defect is
+reduced to a permanent readable regression while the seed remains fixed.
+
 The parser conformance suite pins all 652 CommonMark 0.31.2 examples through the
 `commonmark-spec` development package. Every input must round-trip, and examples
 in supported sections compare their reference HTML markers with mq semantic node
