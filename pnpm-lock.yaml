@@ -23,6 +23,9 @@ importers:
 
   .:
     devDependencies:
+      '@prelude/mq-cli':
+        specifier: workspace:*
+        version: link:packages/mq-cli
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.1

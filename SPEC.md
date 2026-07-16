@@ -716,6 +716,11 @@ Property tests should generate headings, block boundaries, delimiter spellings,
 and newline variants. Conformance fixtures should retain the original source and
 expected derived-tree snapshot together.
 
+The API/CLI equivalence suite runs shared source and expression fixtures through
+the exported library functions and the workspace-installed `mq` binary. It
+compares canonical values, default/raw/JSON serialization, expression and parse
+diagnostics, multi-file ordering, and empty-stream status behavior.
+
 ## 12. Performance and limits
 
 The first implementation optimizes for correctness, then linear behavior:

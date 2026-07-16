@@ -54,3 +54,7 @@ pnpm install
 pnpm check
 pnpm build
 ```
+
+The workspace installs its own `mq` binary at `node_modules/.bin/mq` so the test
+suite verifies the published library boundary and CLI adapter against the same
+query fixtures.
