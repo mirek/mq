@@ -407,6 +407,43 @@ throwing. Diagnostic ranges use expression-source coordinates and identify the
 unexpected token, missing-token insertion point, or complete selector string
 argument responsible for the failure.
 
+`evaluate(document, expression)` starts with a one-value stream containing the
+document and returns a frozen readonly `QueryValue[]`. The compiled expression
+must come from `compileExpression`; passing an object that only resembles one is
+a programmer error. A query value is a Markdown node, a JSON primitive, a
+canonical JSON object, or a readonly array of query values.
+
+Pipeline stages operate on the complete incoming stream. `.`, `markdown`,
+`text`, and `json` map values; `select` maps each input node to zero or more
+matches and concatenates those matches in input order; `count`, `first`, `last`,
+and `array` reduce the complete stream. `count` and `array` always emit one
+value, including for an empty stream. `first` and `last` emit no value for an
+empty stream. Node-only stages (`select`, `markdown`, and `text`) emit no value
+for incompatible inputs. `select` includes its current root, matching the
+default selector API behavior. Streams and collected arrays are immutable.
+
+`markdown` slices the selected node's UTF-8 source range from the evaluated
+document exactly. `text` recursively joins direct child text with `\n`, uses
+decoded heading titles and text-inline values, normalizes retained block line
+endings to `\n`, and removes one final block newline. Blank lines emit an empty
+string. Until a retained node has a decoded inline or block view, its source
+content remains literal in this projection.
+
+`json` recursively converts values to deeply frozen JSON-compatible data.
+Arrays preserve order and object keys use ascending code-unit order so
+`JSON.stringify` is deterministic. Markdown nodes use these semantic shapes;
+source ranges and concrete parser nodes are deliberately excluded:
+
+| Node | JSON fields |
+| --- | --- |
+| document | `type`, optional `path`, recursive `children` |
+| section | `type`, `level`, `title`, recursive `children` |
+| heading | `type`, `level`, `title`, `style` |
+| paragraph | `type`, projected `text` |
+| blank line | `type` |
+| text inline | `type`, `value` |
+| opaque block or inline | `type`, `reason`, exact `markdown` |
+
 ### 7.2 Edit built-ins
 
 Edit expressions consume a document and emit one edited document:
