@@ -5,10 +5,6 @@ Todo files do not have statuses: when work is complete, delete its file and its
 index entry instead of marking it completed. Keep descriptions to one line and
 reorder the index whenever implementation evidence changes the priorities.
 
-## Schemas
-
-- [Validate before writing](todo/validate-before-writing.md) — Prevent output and in-place writes when requested schema validation fails.
-
 ## Hardening and release
 
 - [Fuzz language boundaries](todo/fuzz-language-boundaries.md) — Fuzz Markdown, edits, selectors, expressions, and schemas for crashes and invariant violations.

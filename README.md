@@ -25,7 +25,8 @@ support explicit atomic output and in-place mode preservation. Schemas now have
 a strict, versioned loader, portable YAML/TOML/JSON frontmatter decoding, and a
 deterministic structural and JSON Schema rule engine with stable located
 diagnostics. Both the public `validate` function and `mq validate` adapt the
-same rules.
+same rules, and query `--schema` gates stdout and atomic writes before any
+observable output.
 
 ```ts
 import {

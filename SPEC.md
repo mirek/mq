@@ -1017,9 +1017,20 @@ Initial options:
 | `-h`, `--help` | print read-only query usage and exit successfully |
 
 The query CLI implements `--raw-output`, `--json`, `--quiet`, `--null-input`,
-`--fail-empty`, `--color`, `--diagnostics`, `--write`, and `--output`. `--json`
-and `--raw-output` are mutually exclusive. Boolean flags reject attached
-values; valued long options accept either a following argument or `=value`.
+`--fail-empty`, `--color`, `--diagnostics`, `--write`, `--output`, and
+`--schema`. `--json` and `--raw-output` are mutually exclusive. Boolean flags
+reject attached values; valued long options accept either a following argument
+or `=value`.
+
+With query `--schema`, expression compilation and one schema load complete
+before any Markdown is read. Each input is evaluated first. A sole document
+result is the validation candidate; a non-document query projection validates
+its unchanged input document. Write modes retain their separate requirement for
+exactly one document result and do not validate an ineligible primitive or node
+stream. Diagnostics remain in input order, but all stdout and all write calls
+are delayed until every candidate passes. One violation suppresses the whole
+requested output/write operation and exits 1; no temporary file is opened and
+existing destinations and originals remain byte-for-byte unchanged.
 
 `mq validate --schema <schema.json> [file ...]` is the dedicated validation
 adapter. It loads and compiles the schema before reading any Markdown, then

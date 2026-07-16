@@ -20,6 +20,7 @@ Options:
   -n, --null-input           Evaluate one empty document without reading input
   -w, --write                Atomically replace each named input file
   -o, --output <path>        Atomically write one document result
+      --schema <path>        Validate documents before output or writes
       --fail-empty           Exit 1 when an input emits no values
       --color <policy>       auto, always, or never (default: auto)
       --diagnostics <format> human or json (default: human)
@@ -103,3 +104,18 @@ status=2
 
 Filesystem failures exit with status 3. When several files are supplied, `mq`
 continues in input order and returns the highest status encountered.
+
+## Gate output and writes with a schema
+
+Query `--schema` validates every input document before emitting any result or
+opening an atomic-write temporary file. A violation suppresses the complete
+requested output and exits with status 1:
+
+```console
+$ mq --schema examples/guide-schema.json --raw-output 'select("heading") | text' examples/query-reference.md 2>&1; printf 'status=%s\n' "$?"
+examples/query-reference.md:1:1: error[schema.text-enum]: Plain text "Reference" is not one of ["Guide"].
+examples/guide-schema.json:5:5: note: Schema rule 1 is defined here.
+examples/query-reference.md:1:1: error[schema.count]: Expected at least 2 matches; found 0.
+examples/guide-schema.json:10:5: note: Schema rule 2 is defined here.
+status=1
+```

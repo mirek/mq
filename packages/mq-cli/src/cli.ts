@@ -29,6 +29,7 @@ interface CliOptions {
   nullInput: boolean;
   write: boolean;
   output: string | undefined;
+  schema: string | undefined;
   failEmpty: boolean;
   help: boolean;
   color: ColorPolicy;
@@ -68,6 +69,7 @@ const optionsDefaults = (): CliOptions => ({
   nullInput: false,
   write: false,
   output: undefined,
+  schema: undefined,
   failEmpty: false,
   help: false,
   color: "auto",
@@ -113,7 +115,8 @@ const parseArguments = (
       inline !== undefined &&
       name !== "--color" &&
       name !== "--diagnostics" &&
-      name !== "--output"
+      name !== "--output" &&
+      name !== "--schema"
     ) {
       throw new CliUsageError(`Option ${name} does not accept a value.`);
     }
@@ -131,6 +134,13 @@ const parseArguments = (
       const parsed = optionValue(args, index, name, inline);
       index = parsed.index;
       options.output = parsed.value;
+    } else if (name === "--schema") {
+      if (options.schema !== undefined) {
+        throw new CliUsageError("--schema may be specified only once.");
+      }
+      const parsed = optionValue(args, index, name, inline);
+      index = parsed.index;
+      options.schema = parsed.value;
     } else if (name === "--fail-empty") {
       options.failEmpty = true;
     } else if (name === "-h" || name === "--help") {
@@ -210,6 +220,7 @@ const help = [
   "  -n, --null-input           Evaluate one empty document without reading input",
   "  -w, --write                Atomically replace each named input file",
   "  -o, --output <path>        Atomically write one document result",
+  "      --schema <path>        Validate documents before output or writes",
   "      --fail-empty           Exit 1 when an input emits no values",
   "      --color <policy>       auto, always, or never (default: auto)",
   "      --diagnostics <format> human or json (default: human)",
@@ -448,9 +459,30 @@ const main = async (args: readonly string[]): Promise<number> => {
     return 2;
   }
 
+  let schema: ReturnType<typeof loadSchema> | undefined;
+  if (options.schema !== undefined) {
+    let source: string;
+    try {
+      source = await readFile(options.schema, "utf8");
+    } catch {
+      writeDiagnostics(
+        [cliDiagnostic("cli.io", "Cannot read schema file.", options.schema)],
+        options,
+      );
+      return 3;
+    }
+    schema = loadSchema(source, { path: options.schema });
+    if (!schema.ok) {
+      writeDiagnostics(schema.diagnostics, options);
+      return 2;
+    }
+  }
+
   const diagnostics: Diagnostic[] = [];
   const evaluated: EvaluatedInput[] = [];
   let status = 0;
+  let schemaBlocked = false;
+  const writes = options.write || options.output !== undefined;
   const inputs: readonly (string | undefined)[] = options.nullInput
     ? [undefined]
     : parsedArguments.files.length === 0
@@ -499,9 +531,26 @@ const main = async (args: readonly string[]): Promise<number> => {
     const values = evaluate(parsed.value, compiled.value);
     if (options.failEmpty && values.length === 0) status = Math.max(status, 1);
     evaluated.push({ path: loaded.path, document: parsed.value, values });
+    const documentResult =
+      values.length === 1 &&
+      values[0] !== undefined &&
+      isMarkdownNode(values[0]) &&
+      values[0].type === "document";
+    if (schema?.ok === true && (!writes || documentResult)) {
+      const value = values[0];
+      const candidate =
+        documentResult && value !== undefined && isMarkdownNode(value)
+          ? (value as Document)
+          : parsed.value;
+      const result = validate(candidate, schema.value);
+      if (!result.ok) {
+        diagnostics.push(...result.diagnostics);
+        schemaBlocked = true;
+        status = Math.max(status, 1);
+      }
+    }
   }
 
-  const writes = options.write || options.output !== undefined;
   if (writes && status < 2) {
     const invalid = evaluated.some(
       ({ values }) =>
@@ -520,7 +569,7 @@ const main = async (args: readonly string[]): Promise<number> => {
     }
   }
 
-  if (writes && status === 0) {
+  if (writes && status === 0 && !schemaBlocked) {
     const failures = await Promise.all(
       evaluated.map(async (input): Promise<string | undefined> => {
         const value = input.values[0]!;
@@ -553,7 +602,7 @@ const main = async (args: readonly string[]): Promise<number> => {
     !options.json &&
     !options.quiet &&
     evaluated.some(({ values }) => values.some(isMarkdownNode));
-  if (writes) {
+  if (writes || schemaBlocked) {
     // Explicit write modes never also emit query output.
   } else if (ambiguousMarkdown) {
     diagnostics.push(
