@@ -864,6 +864,31 @@ Rule evaluation uses `schema.count`, `schema.text-min-length`,
 `schema.heading-ranks`. The later public-API milestone defines the exported
 validation result wrapper around this engine.
 
+Frontmatter decoding is explicit and never changes the retained Markdown
+source. YAML uses the YAML 1.2 core schema with string mapping keys, unique keys,
+no custom or known extension tags, and zero aliases. TOML follows TOML 1.1;
+date/time values become their ISO source-equivalent strings. JSON uses the same
+strict parser as schema source, including duplicate-key rejection. All formats
+must produce finite, acyclic portable JSON values, and successful values are
+deeply immutable. A decode failure returns `schema.frontmatter-decode` at the
+frontmatter node while `render(document)` remains byte-for-byte unchanged.
+
+The `frontmatter` member is compiled as strict JSON Schema Draft 2020-12 during
+schema loading. Invalid schemas, unresolved remote references, unknown formats,
+and `$async` schemas fail with `schema.frontmatter-schema`; validation never
+uses the filesystem or network. Validation uses all errors without coercion,
+defaults, mutation, or custom keywords. Each failure is `schema.frontmatter`
+at the retained frontmatter node. A document without frontmatter has nothing to
+decode; cardinality requirements remain ordinary mq rules.
+
+**Dependency decision — portable data languages.** `yaml` 2.9.0 is used because
+its YAML 1.2 implementation passes the YAML test suite and exposes strict,
+alias-limited parsing; `smol-toml` 1.7.0 is used for TOML 1.1 conformance and
+date-kind preservation; both are typed, browser-capable, and have no runtime
+dependencies. Ajv 8.20.0 supplies strict Draft 2020-12 validation in Node and
+browsers. These dependencies materially reduce parser and standards-compliance
+risk compared with maintaining mq-specific YAML, TOML, or JSON Schema subsets.
+
 Schema-loading diagnostics use `schema.json-syntax`,
 `schema.json-duplicate-key`, `schema.version`, `schema.required`, `schema.type`,
 `schema.unknown-key`, `schema.constraint`, `schema.selector`, and
