@@ -821,6 +821,11 @@ const semanticText = (node: MarkdownNode): string => {
   return "";
 };
 
+/** Internal semantic helpers shared with schema rule evaluation. */
+export const schemaNodeChildren = childrenOf;
+export const schemaNodeAttribute = attributeOf;
+export const schemaNodeText = semanticText;
+
 const matchesAttribute = (
   node: MarkdownNode,
   selector: AttributeSelector,
