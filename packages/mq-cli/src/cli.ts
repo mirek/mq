@@ -8,11 +8,14 @@ import {
   isMarkdownNode,
   nodeMarkdown,
   parse,
+  render,
   toJsonValue,
   type Diagnostic,
   type Document,
   type QueryValue,
 } from "@prelude/mq";
+
+import { atomicWrite } from "./atomic-write.ts";
 
 type ColorPolicy = "auto" | "always" | "never";
 type DiagnosticFormat = "human" | "json";
@@ -22,6 +25,8 @@ interface CliOptions {
   json: boolean;
   quiet: boolean;
   nullInput: boolean;
+  write: boolean;
+  output: string | undefined;
   failEmpty: boolean;
   help: boolean;
   color: ColorPolicy;
@@ -35,6 +40,7 @@ interface ParsedArguments {
 }
 
 interface EvaluatedInput {
+  readonly path: string | undefined;
   readonly document: Document;
   readonly values: readonly QueryValue[];
 }
@@ -52,6 +58,8 @@ const optionsDefaults = (): CliOptions => ({
   json: false,
   quiet: false,
   nullInput: false,
+  write: false,
+  output: undefined,
   failEmpty: false,
   help: false,
   color: "auto",
@@ -96,7 +104,8 @@ const parseArguments = (
     if (
       inline !== undefined &&
       name !== "--color" &&
-      name !== "--diagnostics"
+      name !== "--diagnostics" &&
+      name !== "--output"
     ) {
       throw new CliUsageError(`Option ${name} does not accept a value.`);
     }
@@ -108,6 +117,12 @@ const parseArguments = (
       options.quiet = true;
     } else if (name === "-n" || name === "--null-input") {
       options.nullInput = true;
+    } else if (name === "-w" || name === "--write") {
+      options.write = true;
+    } else if (name === "-o" || name === "--output") {
+      const parsed = optionValue(args, index, name, inline);
+      index = parsed.index;
+      options.output = parsed.value;
     } else if (name === "--fail-empty") {
       options.failEmpty = true;
     } else if (name === "-h" || name === "--help") {
@@ -142,6 +157,20 @@ const parseArguments = (
   if (options.nullInput && files.length > 0) {
     throw new CliUsageError("--null-input does not accept input files.");
   }
+  if (options.write && options.output !== undefined) {
+    throw new CliUsageError("--write and --output cannot be combined.");
+  }
+  if (options.write) {
+    if (files.length === 0 || files.some((path) => path === "-")) {
+      throw new CliUsageError("--write requires named input files.");
+    }
+    if (new Set(files).size !== files.length) {
+      throw new CliUsageError("--write does not accept duplicate input paths.");
+    }
+  }
+  if (options.output !== undefined && files.length > 1) {
+    throw new CliUsageError("--output requires exactly one input.");
+  }
   return { options, expression, files: Object.freeze(files) };
 };
 
@@ -171,6 +200,8 @@ const help = [
   "  -j, --json                 Encode every result as canonical JSON",
   "  -q, --quiet                Suppress results",
   "  -n, --null-input           Evaluate one empty document without reading input",
+  "  -w, --write                Atomically replace each named input file",
+  "  -o, --output <path>        Atomically write one document result",
   "      --fail-empty           Exit 1 when an input emits no values",
   "      --color <policy>       auto, always, or never (default: auto)",
   "      --diagnostics <format> human or json (default: human)",
@@ -301,7 +332,53 @@ const main = async (args: readonly string[]): Promise<number> => {
 
     const values = evaluate(parsed.value, compiled.value);
     if (options.failEmpty && values.length === 0) status = Math.max(status, 1);
-    evaluated.push({ document: parsed.value, values });
+    evaluated.push({ path: loaded.path, document: parsed.value, values });
+  }
+
+  const writes = options.write || options.output !== undefined;
+  if (writes && status < 2) {
+    const invalid = evaluated.some(
+      ({ values }) =>
+        values.length !== 1 ||
+        !isMarkdownNode(values[0]) ||
+        values[0].type !== "document",
+    );
+    if (invalid || evaluated.length !== inputs.length) {
+      diagnostics.push(
+        cliDiagnostic(
+          "cli.write-result",
+          "Write output requires exactly one document result.",
+        ),
+      );
+      status = Math.max(status, 2);
+    }
+  }
+
+  if (writes && status === 0) {
+    const failures = await Promise.all(
+      evaluated.map(async (input): Promise<string | undefined> => {
+        const value = input.values[0]!;
+        if (!isMarkdownNode(value) || value.type !== "document") {
+          return undefined;
+        }
+        const destination = options.output ?? input.path!;
+        try {
+          await atomicWrite(destination, render(value), {
+            preserveMode: options.write,
+          });
+          return undefined;
+        } catch {
+          return destination;
+        }
+      }),
+    );
+    for (const destination of failures) {
+      if (destination === undefined) continue;
+      diagnostics.push(
+        cliDiagnostic("cli.io", "Cannot write output file.", destination),
+      );
+      status = Math.max(status, 3);
+    }
   }
 
   const multipleInputs = inputs.length > 1;
@@ -310,7 +387,9 @@ const main = async (args: readonly string[]): Promise<number> => {
     !options.json &&
     !options.quiet &&
     evaluated.some(({ values }) => values.some(isMarkdownNode));
-  if (ambiguousMarkdown) {
+  if (writes) {
+    // Explicit write modes never also emit query output.
+  } else if (ambiguousMarkdown) {
     diagnostics.push(
       cliDiagnostic(
         "cli.multiple-markdown-inputs",
