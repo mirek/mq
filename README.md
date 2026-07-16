@@ -16,8 +16,9 @@ first-class query nodes. Parsing and selector compilation use finite defaults
 with lossless opaque recovery. Parser behavior is checked against all 652
 CommonMark 0.31.2 examples and pinned GFM extension fixtures. The library also
 exposes validated, non-overlapping source-patch plans and exact
-retained/replacement source maps as its edit foundation. Editing operations and
-validation remain under implementation.
+retained/replacement source maps as its edit foundation. Lossless Markdown
+fragments can be parsed and planned at LF, CRLF, or mixed-newline boundaries.
+Editing operations and validation remain under implementation.
 
 ```ts
 import {

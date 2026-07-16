@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Source-local edits
 
-- [Parse edit fragments](todo/parse-edit-fragments.md) — Parse Markdown fragments and plan boundary newlines for insertions.
 - [Implement edit operations](todo/implement-edit-operations.md) — Add replace, remove, insertion, title, and attribute operations.
 - [Preserve immutable edits](todo/preserve-immutable-edits.md) — Return immutable edited snapshots equivalent to reparsing their rendered source.
 - [Add CLI writes](todo/add-cli-writes.md) — Add explicit output and atomic in-place writing modes.
