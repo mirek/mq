@@ -7,11 +7,12 @@ programs.
 The public package currently provides foundational document contracts, lossless
 block recognition, heading-derived section trees, byte-identical rendering of
 unchanged documents, CommonMark and GFM semantic views, compiled selectors, and
-deterministic query expression streams. The read-only CLI supports stdin and
-file queries, raw and JSON output, quiet and fail-empty modes, and human or JSON
-diagnostics. YAML, TOML, and line-fenced JSON frontmatter and CommonMark
-reference definitions are first-class query nodes. Editing and validation
-remain under implementation.
+deterministic query expression streams. Selectors include typed comparisons,
+lists, sibling combinators, structural/text/linear-regex pseudos, and relational
+`:has`/`:not`. The read-only CLI supports stdin and file queries, raw and JSON
+output, quiet and fail-empty modes, and human or JSON diagnostics. YAML, TOML,
+and line-fenced JSON frontmatter and CommonMark reference definitions are
+first-class query nodes. Editing and validation remain under implementation.
 
 ```ts
 import {
