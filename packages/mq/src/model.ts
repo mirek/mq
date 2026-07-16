@@ -28,6 +28,26 @@ export interface BlankLine {
   readonly concrete: ConcreteNode<"blank-line">;
 }
 
+export type FrontmatterFormat = "yaml" | "toml" | "json";
+
+export interface Frontmatter {
+  readonly type: "frontmatter";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"frontmatter">;
+  readonly format: FrontmatterFormat;
+  readonly value: string;
+}
+
+export interface Definition {
+  readonly type: "definition";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"definition">;
+  readonly reference: string;
+  readonly label?: string;
+  readonly destination: string;
+  readonly title?: string;
+}
+
 export interface OpaqueBlock {
   readonly type: "opaque";
   readonly range: SourceRange;
@@ -114,6 +134,8 @@ export interface TableCell {
 export type Block =
   | Paragraph
   | BlankLine
+  | Frontmatter
+  | Definition
   | Blockquote
   | ListBlock
   | ListItem

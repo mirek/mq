@@ -1,5 +1,10 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
+import { frontmatterFromMarkdown } from "mdast-util-frontmatter";
 import { gfmFromMarkdown } from "mdast-util-gfm";
+import {
+  frontmatter,
+  type Options as FrontmatterOptions,
+} from "micromark-extension-frontmatter";
 import { gfm } from "micromark-extension-gfm";
 import type {
   Heading as MdastHeading,
@@ -17,9 +22,12 @@ import type {
   Blockquote,
   BreakInline,
   CodeBlock,
+  Definition,
   Document,
   Emphasis,
   FlowNode,
+  Frontmatter,
+  FrontmatterFormat,
   Heading,
   HeadingLevel,
   HtmlNode,
@@ -308,6 +316,12 @@ const isBlank = (content: string): boolean => /^[\t ]*$/u.test(content);
 const inlinePrograms = new WeakMap<InlineContainer, InlineProgram>();
 const inlineViews = new WeakMap<InlineContainer, readonly Inline[]>();
 
+const frontmatterOptions: FrontmatterOptions = [
+  "yaml",
+  "toml",
+  { type: "json", fence: { open: "{", close: "}" } },
+];
+
 const nodeOffsets = (
   node: PositionedNode,
   context: CommonMarkContext,
@@ -581,16 +595,50 @@ const convertParagraph = (
   );
 };
 
+const convertFrontmatter = (
+  node: MdastRootContent & {
+    readonly type: FrontmatterFormat;
+    readonly value: string;
+  },
+  range: SourceRange,
+): Frontmatter => {
+  const concrete = concreteNode("frontmatter", range);
+  return Object.freeze({
+    type: "frontmatter",
+    range,
+    concrete,
+    format: node.type,
+    value: node.value,
+  });
+};
+
+const convertDefinition = (
+  node: MdastRootContent & { readonly type: "definition" },
+  range: SourceRange,
+): Definition => {
+  const concrete = concreteNode("definition", range);
+  return Object.freeze({
+    type: "definition",
+    range,
+    concrete,
+    reference: node.identifier,
+    ...(node.label === null || node.label === undefined
+      ? {}
+      : { label: node.label }),
+    destination: node.url,
+    ...(node.title === null || node.title === undefined
+      ? {}
+      : { title: node.title }),
+  });
+};
+
 const opaqueBlock = (
   node: MdastRootContent,
   context: CommonMarkContext,
   range: SourceRange,
 ): OpaqueBlock => {
   const concrete = concreteNode("opaque", range);
-  const reason =
-    node.type === "definition"
-      ? "deferred-definition"
-      : `unsupported-block-${node.type}`;
+  const reason = `unsupported-block-${node.type}`;
   context.diagnostics.push(
     Object.freeze({
       code: "markdown.opaque-block",
@@ -660,6 +708,10 @@ const convertFlow = (
 ): FlowNode => {
   if (node.type === "heading") return convertHeading(node, context, range);
   if (node.type === "paragraph") return convertParagraph(node, context, range);
+  if (node.type === "yaml" || node.type === "toml" || node.type === "json") {
+    return convertFrontmatter(node, range);
+  }
+  if (node.type === "definition") return convertDefinition(node, range);
 
   if (node.type === "blockquote") {
     const children = frozenArray(
@@ -821,8 +873,11 @@ const parseBlocks = (
     diagnostics,
   };
   const tree = fromMarkdown(source.slice(contentStart), {
-    extensions: [gfm()],
-    mdastExtensions: [gfmFromMarkdown()],
+    extensions: [frontmatter(frontmatterOptions), gfm()],
+    mdastExtensions: [
+      frontmatterFromMarkdown(frontmatterOptions),
+      gfmFromMarkdown(),
+    ],
   });
   const spans = tree.children.map((node) => {
     const [rawStart, rawEnd] = nodeOffsets(node, context);
