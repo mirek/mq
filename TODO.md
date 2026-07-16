@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Source-local edits
 
-- [Add CLI writes](todo/add-cli-writes.md) — Add explicit output and atomic in-place writing modes.
 - [Verify write failure safety](todo/verify-write-failure-safety.md) — Inject failures to prove original files survive unsuccessful writes.
 
 ## Schemas

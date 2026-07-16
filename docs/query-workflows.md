@@ -18,6 +18,8 @@ Options:
   -j, --json                 Encode every result as canonical JSON
   -q, --quiet                Suppress results
   -n, --null-input           Evaluate one empty document without reading input
+  -w, --write                Atomically replace each named input file
+  -o, --output <path>        Atomically write one document result
       --fail-empty           Exit 1 when an input emits no values
       --color <policy>       auto, always, or never (default: auto)
       --diagnostics <format> human or json (default: human)

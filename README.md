@@ -21,7 +21,8 @@ fragments can be parsed and planned at LF, CRLF, or mixed-newline boundaries,
 and composable planners cover replace/remove, before/after, prepend/append,
 titles, ATX levels, and task checks. The library can apply a planned transaction
 to a new immutable, reparsed document with an immediate source map; CLI writes
-and validation remain under implementation.
+support explicit atomic output and in-place mode preservation. Validation
+remains under implementation.
 
 ```ts
 import {

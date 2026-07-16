@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,6 +64,8 @@ describe("mq query CLI", () => {
       "  -j, --json                 Encode every result as canonical JSON",
       "  -q, --quiet                Suppress results",
       "  -n, --null-input           Evaluate one empty document without reading input",
+      "  -w, --write                Atomically replace each named input file",
+      "  -o, --output <path>        Atomically write one document result",
       "      --fail-empty           Exit 1 when an input emits no values",
       "      --color <policy>       auto, always, or never (default: auto)",
       "      --diagnostics <format> human or json (default: human)",
@@ -149,6 +159,65 @@ describe("mq query CLI", () => {
       "",
       "",
     );
+  });
+
+  it("writes one exact document to an explicit output path", () => {
+    writeFileSync(join(directory, "input.md"), "# Café 😀\r\nbody");
+    assertResult(
+      run(["--output", "copy.md", ".", "input.md"]),
+      0,
+      "",
+      "",
+    );
+    assert.equal(readFileSync(join(directory, "copy.md"), "utf8"), "# Café 😀\r\nbody");
+
+    assertResult(run(["--null-input", "-o", "empty.md", "."]), 0, "", "");
+    assert.equal(readFileSync(join(directory, "empty.md"), "utf8"), "");
+  });
+
+  it("atomically writes named inputs in place and preserves file modes", () => {
+    const path = join(directory, "write.md");
+    writeFileSync(path, "# Exact\r\nbody");
+    chmodSync(path, 0o640);
+
+    assertResult(run(["--write", ".", "write.md"]), 0, "", "");
+    assert.equal(readFileSync(path, "utf8"), "# Exact\r\nbody");
+    assert.equal(statSync(path).mode & 0o777, 0o640);
+    assert.deepEqual(
+      readdirSync(directory).filter((name) => name.includes(".mq-")),
+      [],
+    );
+  });
+
+  it("rejects unsafe write input and result counts", () => {
+    writeFileSync(join(directory, "one.md"), "# One\n");
+    writeFileSync(join(directory, "two.md"), "# Two\n");
+
+    const cases: readonly [readonly string[], string][] = [
+      [
+        ["--write", "."],
+        "mq: error[cli.usage]: --write requires named input files.\n",
+      ],
+      [
+        ["--write", ".", "one.md", "one.md"],
+        "mq: error[cli.usage]: --write does not accept duplicate input paths.\n",
+      ],
+      [
+        ["--output", "out.md", ".", "one.md", "two.md"],
+        "mq: error[cli.usage]: --output requires exactly one input.\n",
+      ],
+      [
+        ["--output", "out.md", "count", "one.md"],
+        "mq: error[cli.write-result]: Write output requires exactly one document result.\n",
+      ],
+      [
+        ["--write", "--fail-empty", 'select("heading[level=6]")', "one.md"],
+        "mq: error[cli.write-result]: Write output requires exactly one document result.\n",
+      ],
+    ];
+    for (const [args, stderr] of cases) {
+      assertResult(run(args), 2, "", stderr);
+    }
   });
 
   it("returns stable human and JSON expression diagnostics", () => {

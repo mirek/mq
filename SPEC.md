@@ -878,17 +878,20 @@ Initial options:
 | `--diagnostics <human|json>` | stderr diagnostic format |
 | `-h`, `--help` | print read-only query usage and exit successfully |
 
-The initial read-only CLI implements `--raw-output`, `--json`, `--quiet`,
-`--null-input`, `--fail-empty`, `--color`, and `--diagnostics`. `--json` and
-`--raw-output` are mutually exclusive. Boolean flags reject attached values;
-the valued long options accept either a following argument or `=value`.
-`--write`, `--output`, and `--schema` remain usage errors until their respective
-write and validation milestones ship.
+The CLI implements `--raw-output`, `--json`, `--quiet`, `--null-input`,
+`--fail-empty`, `--color`, `--diagnostics`, `--write`, and `--output`. `--json`
+and `--raw-output` are mutually exclusive. Boolean flags reject attached
+values; valued long options accept either a following argument or `=value`.
+`--schema` remains a usage error until validation ships.
 
 `--write` rejects stdin, duplicate paths, query results that are not exactly one
 document per input, and any parse/edit/schema error. It writes a sibling
 temporary file, copies the original mode, flushes and closes it, then renames it
-over the original. A failure must leave the original file intact.
+over the original. A failure must leave the original file intact. `--output`
+accepts exactly one input (including stdin or `--null-input`) and one document
+result, then uses the same atomic sibling-temp workflow without original-mode
+copying. Explicit write modes produce no stdout and write `render(document)`
+bytes rather than query-output framing.
 
 The shell, not mq, performs ordinary glob expansion. A future explicit glob
 option may provide cross-platform behavior.
