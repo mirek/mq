@@ -16,6 +16,18 @@ export {
   nodeMarkdown,
   toJsonValue,
 } from "./expression.ts";
+export {
+  afterEdit,
+  appendEdit,
+  beforeEdit,
+  planEdits,
+  prependEdit,
+  removeEdit,
+  replaceEdit,
+  setAttributeEdit,
+  setTitleEdit,
+} from "./edit.ts";
+export type { EditOperation } from "./edit.ts";
 export { parseMarkdownFragment, planFragmentInsertion } from "./fragment.ts";
 export type { MarkdownFragment } from "./fragment.ts";
 export type {

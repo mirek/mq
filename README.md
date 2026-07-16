@@ -17,8 +17,10 @@ with lossless opaque recovery. Parser behavior is checked against all 652
 CommonMark 0.31.2 examples and pinned GFM extension fixtures. The library also
 exposes validated, non-overlapping source-patch plans and exact
 retained/replacement source maps as its edit foundation. Lossless Markdown
-fragments can be parsed and planned at LF, CRLF, or mixed-newline boundaries.
-Editing operations and validation remain under implementation.
+fragments can be parsed and planned at LF, CRLF, or mixed-newline boundaries,
+and composable planners cover replace/remove, before/after, prepend/append,
+titles, ATX levels, and task checks. Edited document snapshots, CLI writes, and
+validation remain under implementation.
 
 ```ts
 import {

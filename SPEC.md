@@ -661,6 +661,22 @@ engine rejects overlapping or structurally conflicting patches rather than
 depending on application order. Operations that cannot apply to a node kind
 produce an edit diagnostic.
 
+The TypeScript patch-planning API exposes immutable `replaceEdit`, `removeEdit`,
+`beforeEdit`, `afterEdit`, `prependEdit`, `appendEdit`, `setTitleEdit`, and
+`setAttributeEdit` operation values. `planEdits(document, operations)` resolves
+each compiled selector once in operation then source order and feeds every patch
+to the atomic source-patch planner. No matches produce no patches. Fragment
+replacement preserves a target's final newline when present. Before/after use
+the target boundaries; prepend/append currently accept document and section
+containers, and document prepend stays after leading frontmatter.
+
+`setTitleEdit` accepts headings or sections, rejects newlines, and escapes plain
+text Markdown punctuation before replacing only `inlineRange`. Source-local
+attribute edits currently support integer `heading.level` on ATX headings and
+boolean `item.checked` when a task marker already exists. Other target or
+attribute combinations fail with `edit.target` or `edit.attribute`; invalid
+title values use `edit.value`.
+
 Examples:
 
 ```mq
