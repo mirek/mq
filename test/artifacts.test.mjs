@@ -19,6 +19,42 @@ const temporary = mkdtempSync(join(tmpdir(), "mq-artifacts-"));
 let corePack;
 let cliPack;
 
+const publicRuntimeExports = [
+  "MQ_SCHEMA_V1",
+  "afterEdit",
+  "appendEdit",
+  "applyEdits",
+  "applySourcePatches",
+  "beforeEdit",
+  "compileExpression",
+  "compileSelector",
+  "evaluate",
+  "failure",
+  "inlines",
+  "isMarkdownNode",
+  "loadSchema",
+  "nodeMarkdown",
+  "parse",
+  "parseMarkdownFragment",
+  "planEdits",
+  "planFragmentInsertion",
+  "planSourcePatches",
+  "prependEdit",
+  "removeEdit",
+  "render",
+  "replaceEdit",
+  "resourceLimits",
+  "schemaMetaSchemaV1",
+  "select",
+  "setAttributeEdit",
+  "setTitleEdit",
+  "sourcePosition",
+  "sourceRange",
+  "success",
+  "toJsonValue",
+  "validate",
+];
+
 after(() => rmSync(temporary, { recursive: true, force: true }));
 
 const run = (command, args, options = {}) => {
@@ -117,6 +153,7 @@ describe("packed package artifacts", () => {
     assert.deepEqual(core.exports, {
       ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
     });
+    assert.deepEqual(cli.exports, {});
     assert.deepEqual(core.publishConfig, { access: "public", provenance: true });
     assert.deepEqual(cli.publishConfig, { access: "public", provenance: true });
     assert.equal(cli.dependencies["@prelude/mq"], core.version);
@@ -168,6 +205,22 @@ describe("packed package artifacts", () => {
       { cwd: consumer },
     );
     run(process.execPath, ["consumer.mjs"], { cwd: consumer });
+
+    writeFileSync(
+      join(consumer, "contracts.mjs"),
+      [
+        'import assert from "node:assert/strict";',
+        'import * as api from "@prelude/mq";',
+        `assert.deepEqual(Object.keys(api), ${JSON.stringify(publicRuntimeExports)});`,
+        "for (const path of [",
+        '  "@prelude/mq/validate",',
+        '  "@prelude/mq-cli/dist/atomic-write.js",',
+        "]) {",
+        "  await assert.rejects(import(path), { code: \"ERR_PACKAGE_PATH_NOT_EXPORTED\" });",
+        "}",
+      ].join("\n"),
+    );
+    run(process.execPath, ["contracts.mjs"], { cwd: consumer });
 
     const binary = join(consumer, "node_modules", ".bin", "mq");
     assert.notEqual(statSync(binary).mode & 0o111, 0, "installed mq must be executable");

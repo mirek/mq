@@ -51,7 +51,8 @@ syntax or data model.
 - YAML, TOML, or JSON frontmatter represented as a distinct node;
 - a lossless concrete syntax tree and a derived heading/section hierarchy;
 - CSS-like selectors over the derived tree;
-- a small pipeline expression language for projections and edits;
+- a small pipeline expression language for queries and projections;
+- source-local edit planning and immutable transaction application;
 - JSON-compatible Markdown schemas;
 - deterministic TypeScript and CLI APIs.
 
@@ -173,9 +174,10 @@ The document records:
 - parse diagnostics;
 - CST root and derived-tree indexes.
 
-Node identity is stable within one parsed document and across edits that do not
-replace that node's concrete range. Identity is not stable across a fresh parse
-and must not be persisted in schemas.
+Node identity is stable within one document snapshot. A no-op edit returns that
+same snapshot, but every non-empty edit reparses and creates new node identities,
+including for retained ranges. Identity must not be persisted across snapshots
+or in schemas.
 
 ### 5.2 Concrete syntax tree
 
@@ -394,10 +396,13 @@ Initial selectors recognize these type names:
 | `emphasis`, `strong`, `inline-code`, `break` | recursive children or decoded value |
 | `opaque` | `reason` |
 
-`title` is decoded plain text. `slug` uses a documented GitHub-compatible slug
-algorithm and is computed, never serialized. Duplicate slugs are allowed and
-receive no implicit numeric suffix; callers that require uniqueness must use a
-schema.
+`title` is decoded plain text. `slug` trims leading and trailing whitespace,
+lowercases with the fixed `en-US` locale, removes every code point except
+Unicode letters, Unicode numbers, `_`, `-`, and whitespace, then replaces each
+remaining whitespace code point with `-`. It performs no Unicode normalization,
+is computed rather than serialized, does not collapse repeated hyphens, and
+does not add a numeric suffix. Duplicate slugs are allowed; callers that require
+uniqueness must use a schema.
 
 ## 6. Selectors
 
@@ -638,23 +643,12 @@ Retained segments are copied exactly, while replacement segments make no
 character-level mapping claim. Both application and map generation are linear
 after the plan's O(p log p) sort.
 
-### 7.3 Edit built-ins
+### 7.3 Edit operations
 
-Edit expressions consume a document and emit one edited document:
-
-| Function | Effect |
-| --- | --- |
-| `replace(selector, markdown)` | replace every match |
-| `remove(selector)` | remove every match |
-| `append(selector, markdown)` | append as the last child of every match |
-| `prepend(selector, markdown)` | prepend as the first non-heading child |
-| `before(selector, markdown)` | insert before every match |
-| `after(selector, markdown)` | insert after every match |
-| `setTitle(selector, string)` | change matching section/heading titles |
-| `setAttribute(selector, name, value)` | update a supported semantic attribute |
-
-`markdown("...")` creates a parsed fragment value. Fragment parse errors stop
-the edit unless recovery is explicitly enabled by a future option.
+The initial edit surface is the TypeScript API. Edit syntax is not part of the
+0.x query expression grammar or CLI; adding it requires a separate syntax,
+diagnostic, and transaction design. `parseMarkdownFragment` creates the fragment
+values consumed by source-local operations.
 
 All targets are resolved against the input snapshot before edits begin. The
 engine rejects overlapping or structurally conflicting patches rather than
@@ -685,14 +679,6 @@ failure returns no document. An empty patch plan returns the original document
 identity. Non-empty edits rebuild the parsed tree because public ranges are
 immutable and even retained nodes can shift; a fresh parse of rendered output
 must have the same semantic JSON shape as the returned snapshot.
-
-Examples:
-
-```mq
-remove("section[title='Deprecated']")
-setTitle("section[title='Setup']", "Installation")
-append("section[title='Examples']", markdown("\n```ts\nrun()\n```\n"))
-```
 
 Moving and copying nodes are deferred until identity and overlap semantics have
 been exercised by the initial edit set.
@@ -861,8 +847,8 @@ Rule evaluation uses `schema.count`, `schema.text-min-length`,
 `schema.markdown-pattern`, `schema.attribute-required`,
 `schema.attribute-equals`, `schema.attribute-range`, `schema.child-allowed`,
 `schema.child-required`, `schema.child-order`, `schema.unique`, and
-`schema.heading-ranks`. The later public-API milestone defines the exported
-validation result wrapper around this engine.
+`schema.heading-ranks`. The exported `validate` function wraps this engine in
+the public `Result<Document>` contract described in section 9.
 
 Frontmatter decoding is explicit and never changes the retained Markdown
 source. YAML uses the YAML 1.2 core schema with string mapping keys, unique keys,
@@ -977,10 +963,12 @@ Public collections are readonly. Mutations return a new document snapshot that
 shares the complete original identity for no-op edits and otherwise rebuilds
 range-bearing indexes from retained source plus replacements.
 
-The package exports JavaScript, declarations, and source maps as native ESM. It
-targets maintained Node.js releases starting with Node 24. A browser build is
-not an initial release requirement, but core code must avoid Node-only I/O so a
-future browser export is possible.
+The core package exports JavaScript, declarations, and source maps as native ESM
+from its root `@prelude/mq` entry only; internal file subpaths are not public.
+The CLI package exposes only its `mq` executable and blocks JavaScript subpath
+imports. Both target maintained Node.js releases starting with Node 24. A
+browser build is not an initial release requirement, but core code must avoid
+Node-only I/O so a future browser export is possible.
 
 Packed packages include `dist/`, their matching `src/` map targets, and only the
 CLI's executable `bin/` entry beyond package metadata. Workspace dependencies
@@ -1225,6 +1213,8 @@ changelog and derive their categories from pull-request labels.
 
 The following eventually require a major version after 1.0:
 
+- removing or renaming a root export or incompatibly changing a public type;
+- changing source coordinate units, readonly guarantees, or result shapes;
 - changing section nesting;
 - changing selector matching or source order;
 - changing edit conflict resolution;
@@ -1255,15 +1245,15 @@ both paragraphs in source order.
 
 ### Preserve unrelated formatting
 
-Applying `setTitle("section[title='Install']", "Installation")` changes only the
-heading's inline source. Blank lines, list markers, fence length, newline style,
-and the remainder of the document stay byte-identical.
+Applying `setTitleEdit` with a compiled `section[title='Install']` selector
+changes only the heading's inline source. Blank lines, list markers, fence
+length, newline style, and the remainder of the document stay byte-identical.
 
 ### Reject ambiguous edits
 
-Replacing a section and also replacing a paragraph inside that section in the
-same expression is an overlap error. mq reports both target ranges and writes
-nothing.
+Passing operations that replace a section and a paragraph inside that section
+to one `planEdits` call is an overlap error. The result reports both target
+ranges and contains no patch plan.
 
 ### Validate a template
 
@@ -1275,9 +1265,8 @@ sections report each duplicate range in stable source order.
 
 These decisions should be made only with implementation evidence:
 
-- the exact GitHub-compatible slug variant and Unicode normalization behavior;
-- safe limits or an alternative engine for `:matches`;
 - syntax and conflict semantics for move/copy operations;
+- query-expression and CLI syntax for edit transactions;
 - browser and WASM packaging;
 - extension/plugin contracts;
 - multi-document output framing.

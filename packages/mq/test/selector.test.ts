@@ -103,6 +103,13 @@ describe("core selectors", () => {
       query(source, 'document[path="guide.md"]').map(({ type }) => type),
       ["document"],
     );
+    assert.deepEqual(
+      query(
+        "## Crème  brûlée -- API_v2!\n",
+        "heading[slug='crème--brûlée----api_v2']",
+      ).map((node) => node.type === "heading" && node.title),
+      ["Crème  brûlée -- API_v2!"],
+    );
   });
 
   it("returns immutable compiled selectors and immutable deduplicated matches", () => {

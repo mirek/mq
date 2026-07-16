@@ -83,6 +83,8 @@ See [Packed artifact verification](docs/package-artifacts.md) for tarball
 allowlists, provenance checks, and the isolated consumer test.
 See [Releases](docs/releases.md) for lockstep versions, tag verification, OIDC
 publishing order, provenance, and generated release notes.
+See [Public 0.x contracts](docs/public-contracts.md) for the audited package
+surfaces, behavioral guarantees, and remaining pre-1.0 compatibility risks.
 
 The workspace installs its own `mq` binary at `node_modules/.bin/mq` so the test
 suite verifies the published library boundary and CLI adapter against the same
