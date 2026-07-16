@@ -220,6 +220,24 @@ describe("mq query CLI", () => {
     }
   });
 
+  it("preserves original bytes when write result validation fails", () => {
+    const path = join(directory, "validation.md");
+    const original = Buffer.from("# Original\r\n\0\xff", "latin1");
+    writeFileSync(path, original);
+
+    assertResult(
+      run(["--write", "count", "validation.md"]),
+      2,
+      "",
+      "mq: error[cli.write-result]: Write output requires exactly one document result.\n",
+    );
+    assert.deepEqual(readFileSync(path), original);
+    assert.deepEqual(
+      readdirSync(directory).filter((name) => name.includes(".mq-")),
+      [],
+    );
+  });
+
   it("returns stable human and JSON expression diagnostics", () => {
     assertResult(
       run(["wat"], "# Ignored\n"),
