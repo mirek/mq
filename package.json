@@ -21,6 +21,7 @@
     "typecheck": "pnpm --recursive --if-present run typecheck"
   },
   "devDependencies": {
+    "@prelude/mq": "workspace:*",
     "@prelude/mq-cli": "workspace:*",
     "@types/node": "catalog:",
     "oxlint": "catalog:",

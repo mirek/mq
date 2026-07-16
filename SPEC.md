@@ -1099,10 +1099,12 @@ JSON diagnostics are one compact diagnostic object per line. Expression
 compilation happens before any input is read; input diagnostics and results
 otherwise preserve input order.
 
-The checked-in query and validation workflow guides cover help, stdin, ordered
-files, section Markdown, text, canonical JSON, collection, empty results,
-schema violations, and diagnostics. Their console transcripts are executable
-conformance examples run against the workspace-installed binary.
+The checked-in query, library, and validation workflow guides cover help,
+stdin, ordered files, section Markdown, text, canonical JSON, collection, empty
+results, schema violations, diagnostics, querying, creating, modifying, and
+validating through the public API. Every console transcript is an executable
+conformance example run both against the workspace and from a temporary project
+containing only clean installs of the packed packages and copied fixtures.
 
 ### 10.3 Exit statuses
 

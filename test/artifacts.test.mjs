@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, posix, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
+
+import { verifyWorkflowGuides } from "../scripts/verify-workflow-guides.mjs";
 
 const workspace = resolve(import.meta.dirname, "..");
 const temporary = mkdtempSync(join(tmpdir(), "mq-artifacts-"));
@@ -168,5 +177,15 @@ describe("packed package artifacts", () => {
     });
     assert.equal(cli.stdout, "Packed CLI\n");
     assert.equal(cli.stderr, "");
+
+    cpSync(resolve(workspace, "examples"), join(consumer, "examples"), {
+      recursive: true,
+    });
+    const commands = verifyWorkflowGuides({
+      documentationRoot: resolve(workspace, "docs"),
+      executionRoot: consumer,
+      binaryDirectory: join(consumer, "node_modules", ".bin"),
+    });
+    assert.equal(commands.length > 0, true);
   });
 });
