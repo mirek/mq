@@ -6,14 +6,15 @@ programs.
 
 The public package currently provides foundational document contracts, lossless
 block recognition, heading-derived section trees, byte-identical rendering of
-unchanged documents, and compiled core selectors. Expression queries, editing,
-validation, and CLI behavior remain under implementation; the initial query
-expression language can also be compiled for reuse ahead of evaluation.
+unchanged documents, compiled core selectors, and deterministic query
+expression streams. Editing, validation, and CLI behavior remain under
+implementation.
 
 ```ts
 import {
   compileExpression,
   compileSelector,
+  evaluate,
   parse,
   render,
   select,
@@ -25,7 +26,8 @@ const expression = compileExpression('select("section[level=2]") | markdown');
 
 if (parsed.ok && compiled.ok && expression.ok) {
   const sections = select(parsed.value, compiled.value);
-  console.log(sections, render(parsed.value));
+  const markdown = evaluate(parsed.value, expression.value);
+  console.log(sections, markdown, render(parsed.value));
 }
 ```
 

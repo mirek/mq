@@ -6,8 +6,9 @@ import {
 } from "@prelude/parser";
 
 import type { Diagnostic } from "./diagnostic.ts";
+import type { Document, MarkdownNode } from "./model.ts";
 import { failure, success, type Result } from "./result.ts";
-import { compileSelector, type CompiledSelector } from "./selector.ts";
+import { compileSelector, select, type CompiledSelector } from "./selector.ts";
 import {
   sourcePosition,
   sourceRange,
@@ -40,6 +41,24 @@ type CompiledStage = ExpressionStage | SelectStage;
 export interface CompiledExpression {
   readonly source: string;
 }
+
+export type QueryJsonPrimitive = string | number | boolean | null;
+
+export interface QueryJsonObject {
+  readonly [key: string]: QueryJsonValue;
+}
+
+export type QueryJsonValue =
+  | QueryJsonPrimitive
+  | readonly QueryJsonValue[]
+  | QueryJsonObject;
+
+/** A value emitted by an evaluated query expression. */
+export type QueryValue =
+  | MarkdownNode
+  | QueryJsonPrimitive
+  | QueryJsonObject
+  | readonly QueryValue[];
 
 interface ParseState {
   readonly source: string;
@@ -288,4 +307,183 @@ export const compileExpression = (
     if (!(error instanceof ExpressionCompileError)) throw error;
     return failure(diagnostic(source, error));
   }
+};
+
+interface EvaluationContext {
+  readonly document: Document;
+  readonly utf16IndexByByteOffset: ReadonlyMap<number, number>;
+}
+
+const makeEvaluationContext = (document: Document): EvaluationContext => {
+  const utf16IndexByByteOffset = new Map<number, number>();
+  let byteOffset = 0;
+  let index = 0;
+  utf16IndexByByteOffset.set(byteOffset, index);
+
+  while (index < document.source.text.length) {
+    const codePoint = document.source.text.codePointAt(index);
+    if (codePoint === undefined) break;
+    const width = codePoint > 0xffff ? 2 : 1;
+    byteOffset += utf8Width(codePoint);
+    index += width;
+    utf16IndexByByteOffset.set(byteOffset, index);
+  }
+
+  return { document, utf16IndexByByteOffset };
+};
+
+const isMarkdownNode = (value: QueryValue): value is MarkdownNode =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "range" in value &&
+  "type" in value;
+
+const markdownOf = (
+  node: MarkdownNode,
+  context: EvaluationContext,
+): string => {
+  const start = context.utf16IndexByByteOffset.get(node.range.start.byteOffset);
+  const end = context.utf16IndexByByteOffset.get(node.range.end.byteOffset);
+  if (start === undefined || end === undefined) {
+    throw new TypeError("node range must belong to the evaluated document");
+  }
+  return context.document.source.text.slice(start, end);
+};
+
+const withoutFinalNewline = (value: string): string =>
+  value.replace(/(?:\r\n|\r|\n)$/u, "").replace(/\r\n?|\n/gu, "\n");
+
+const textOf = (node: MarkdownNode, context: EvaluationContext): string => {
+  if (node.type === "heading") return node.title;
+  if (node.type === "text") return node.value;
+  if (node.type === "document" || node.type === "section") {
+    return node.children.map((child) => textOf(child, context)).join("\n");
+  }
+  if (node.type === "blank-line") return "";
+  return withoutFinalNewline(markdownOf(node, context));
+};
+
+const canonicalObject = (
+  entries: readonly (readonly [string, QueryJsonValue])[],
+): QueryJsonObject => {
+  const sorted = entries.toSorted(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
+  return Object.freeze(Object.fromEntries(sorted)) as QueryJsonObject;
+};
+
+const nodeToJson = (
+  node: MarkdownNode,
+  context: EvaluationContext,
+): QueryJsonObject => {
+  if (node.type === "document") {
+    return canonicalObject([
+      ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],
+      ...(node.path === undefined ? [] : [["path", node.path] as const]),
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "section") {
+    return canonicalObject([
+      ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],
+      ["level", node.level],
+      ["title", node.title],
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "heading") {
+    return canonicalObject([
+      ["level", node.level],
+      ["style", node.style],
+      ["title", node.title],
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "paragraph") {
+    return canonicalObject([
+      ["text", textOf(node, context)],
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "blank-line") {
+    return canonicalObject([["type", node.type]]);
+  }
+  if (node.type === "text") {
+    return canonicalObject([
+      ["type", node.type],
+      ["value", node.value],
+    ]);
+  }
+  return canonicalObject([
+    ["markdown", markdownOf(node, context)],
+    ["reason", node.reason],
+    ["type", node.type],
+  ]);
+};
+
+const valueToJson = (
+  value: QueryValue,
+  context: EvaluationContext,
+): QueryJsonValue => {
+  if (isMarkdownNode(value)) return nodeToJson(value, context);
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((item) => valueToJson(item, context)));
+  }
+  if (typeof value === "object" && value !== null) {
+    return canonicalObject(
+      Object.entries(value).map(([key, item]) => [key, valueToJson(item, context)]),
+    );
+  }
+  return value;
+};
+
+const evaluateStage = (
+  incoming: readonly QueryValue[],
+  stage: CompiledStage,
+  context: EvaluationContext,
+): readonly QueryValue[] => {
+  if (stage.kind === "identity") return incoming;
+  if (stage.kind === "count") return Object.freeze([incoming.length]);
+  if (stage.kind === "first") {
+    return incoming.length === 0 ? Object.freeze([]) : Object.freeze([incoming[0]!]);
+  }
+  if (stage.kind === "last") {
+    return incoming.length === 0 ? Object.freeze([]) : Object.freeze([incoming.at(-1)!]);
+  }
+  if (stage.kind === "array") {
+    return Object.freeze([Object.freeze([...incoming])]);
+  }
+
+  const outgoing: QueryValue[] = [];
+  for (const value of incoming) {
+    if (stage.kind === "json") {
+      outgoing.push(valueToJson(value, context));
+    } else if (isMarkdownNode(value)) {
+      if (stage.kind === "select") {
+        outgoing.push(...select(value, stage.selector));
+      } else if (stage.kind === "markdown") {
+        outgoing.push(markdownOf(value, context));
+      } else if (stage.kind === "text") {
+        outgoing.push(textOf(value, context));
+      }
+    }
+  }
+  return Object.freeze(outgoing);
+};
+
+/** Evaluates a compiled expression as an immutable ordered value stream. */
+export const evaluate = (
+  document: Document,
+  expression: CompiledExpression,
+): readonly QueryValue[] => {
+  const stages = programs.get(expression);
+  if (stages === undefined) {
+    throw new TypeError("expression must be produced by compileExpression");
+  }
+
+  const context = makeEvaluationContext(document);
+  let stream: readonly QueryValue[] = Object.freeze([document]);
+  for (const stage of stages) stream = evaluateStage(stream, stage, context);
+  return stream;
 };
