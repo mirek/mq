@@ -13,10 +13,11 @@
   "scripts": {
     "benchmark": "pnpm build && node benchmarks/resource-limits.mjs",
     "build": "pnpm --recursive --if-present run build",
-    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:artifacts",
     "clean": "pnpm --recursive --if-present run clean",
     "lint": "oxlint --deny-warnings .",
     "test": "pnpm --recursive --if-present run test",
+    "test:artifacts": "pnpm build && node --test test/artifacts.test.mjs",
     "typecheck": "pnpm --recursive --if-present run typecheck"
   },
   "devDependencies": {

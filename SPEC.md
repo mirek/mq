@@ -982,6 +982,14 @@ targets maintained Node.js releases starting with Node 24. A browser build is
 not an initial release requirement, but core code must avoid Node-only I/O so a
 future browser export is possible.
 
+Packed packages include `dist/`, their matching `src/` map targets, and only the
+CLI's executable `bin/` entry beyond package metadata. Workspace dependencies
+are rewritten to the packed version. Both manifests publish publicly with npm
+provenance enabled and require Node 24 or newer. `pnpm check` packs both
+workspaces and installs the tarballs into an isolated consumer, where strict
+NodeNext declarations, ESM imports, source maps, and the executable `mq` wiring
+must work without repository files or workspace links.
+
 ## 10. CLI
 
 ### 10.1 Invocation
