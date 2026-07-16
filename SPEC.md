@@ -642,6 +642,7 @@ Initial options:
 | `--fail-empty` | fail when the expression emits no values |
 | `--color <auto|always|never>` | diagnostic color policy |
 | `--diagnostics <human|json>` | stderr diagnostic format |
+| `-h`, `--help` | print read-only query usage and exit successfully |
 
 The initial read-only CLI implements `--raw-output`, `--json`, `--quiet`,
 `--null-input`, `--fail-empty`, `--color`, and `--diagnostics`. `--json` and
@@ -682,6 +683,11 @@ severity label, `never` emits no escapes, and `auto` colors only for a TTY.
 JSON diagnostics are one compact diagnostic object per line. Expression
 compilation happens before any input is read; input diagnostics and results
 otherwise preserve input order.
+
+The checked-in query workflow guide covers help, stdin, ordered files, section
+Markdown, text, canonical JSON, collection, empty results, and diagnostics. Its
+console transcripts are executable conformance examples run against the
+workspace-installed binary.
 
 ### 10.3 Exit statuses
 
