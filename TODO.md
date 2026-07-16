@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Source-local edits
 
-- [Preserve immutable edits](todo/preserve-immutable-edits.md) — Return immutable edited snapshots equivalent to reparsing their rendered source.
 - [Add CLI writes](todo/add-cli-writes.md) — Add explicit output and atomic in-place writing modes.
 - [Verify write failure safety](todo/verify-write-failure-safety.md) — Inject failures to prove original files survive unsuccessful writes.
 

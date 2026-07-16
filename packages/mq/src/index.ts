@@ -18,6 +18,7 @@ export {
 } from "./expression.ts";
 export {
   afterEdit,
+  applyEdits,
   appendEdit,
   beforeEdit,
   planEdits,

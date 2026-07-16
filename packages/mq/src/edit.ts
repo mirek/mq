@@ -4,9 +4,11 @@ import {
   type MarkdownFragment,
 } from "./fragment.ts";
 import type { Document, Heading, MarkdownNode } from "./model.ts";
+import { parse } from "./parse.ts";
 import { failure, success, type Result } from "./result.ts";
 import { select, type CompiledSelector } from "./selector.ts";
 import {
+  applySourcePatches,
   planSourcePatches,
   type SourcePatch,
   type SourcePatchPlan,
@@ -362,4 +364,26 @@ export const planEdits = (
     }
   }
   return planSourcePatches(document.source.text, patches);
+};
+
+/** Applies a complete edit transaction and reparses one immutable snapshot. */
+export const applyEdits = (
+  document: Document,
+  editOperations: readonly EditOperation[],
+): Result<Document> => {
+  const planned = planEdits(document, editOperations);
+  if (!planned.ok) return planned;
+  if (planned.value.patches.length === 0) return success(document);
+
+  const applied = applySourcePatches(planned.value);
+  const parsed = parse(
+    applied.text,
+    document.path === undefined ? {} : { path: document.path },
+  );
+  if (!parsed.ok) return parsed;
+  const edited: Document = Object.freeze({
+    ...parsed.value,
+    sourceMap: applied.map,
+  });
+  return success(edited, parsed.diagnostics);
 };
