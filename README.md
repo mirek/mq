@@ -54,6 +54,8 @@ See [Query workflows](docs/query-workflows.md) for executable examples covering
 stdin, files, Markdown, text, JSON, collection, and error handling.
 See [Validation workflows](docs/validation-workflows.md) for schema files,
 status behavior, and located rule notes.
+See [Library workflows](docs/library-workflows.md) for executable querying,
+modification, creation, and validation programs using the public package.
 
 Read [SPEC.md](./SPEC.md) for the product and language design, then
 [TODO.md](./TODO.md) for the prioritized remaining work.
