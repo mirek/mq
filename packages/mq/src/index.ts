@@ -60,7 +60,7 @@ export type {
   ThematicBreak,
 } from "./model.ts";
 export { inlines, parse } from "./parse.ts";
-export type { ParseOptions } from "./parse.ts";
+export type { ParseLimits, ParseOptions } from "./parse.ts";
 export { render } from "./render.ts";
 export { compileSelector, select } from "./selector.ts";
 export type { CompiledSelector, SelectOptions } from "./selector.ts";

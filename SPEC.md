@@ -191,6 +191,22 @@ are materialized lazily by `inlines(headingOrParagraph)` and cached by container
 identity. A block's `inlineRange` remains authoritative before and after that
 view is requested.
 
+Parsing uses finite defaults: 16 MiB of UTF-8 source, 100,000 tokenizer semantic
+nodes (including inline nodes), nesting depth 128, and 100 diagnostics. Callers
+may lower or raise these safe-integer ceilings through `ParseOptions.limits`;
+`maxDiagnostics` must be at least one and the others may be zero. Retained
+top-level blank-line wrappers do not consume the semantic-node budget.
+
+Recovery boundaries are deterministic. Unsupported syntax becomes one opaque
+node over the tokenizer node's exact range. A byte-limit violation skips
+tokenization and preserves all content after an optional BOM as one opaque node.
+Node-budget exhaustion keeps the accepted top-level prefix and preserves the
+remaining suffix as one opaque node. A depth violation preserves only its
+owning top-level block as opaque and resumes at the next block. These recoveries
+emit `markdown.limit` warnings and unchanged rendering remains byte-identical.
+When diagnostics exceed their ceiling, the final retained diagnostic becomes
+`markdown.diagnostic-limit`; further diagnostics are suppressed.
+
 ### 5.3 Derived tree
 
 The public derived model begins with these TypeScript shapes. More block and
@@ -471,6 +487,11 @@ Malformed syntax uses `selector.syntax`, invalid typed operators or values use
 `selector.attribute-type`, and invalid, unsupported, or overlong regular
 expressions use `selector.regex`. Each is an immutable error diagnostic over the
 selector source.
+
+Selector compilation accepts at most 65,536 UTF-8 source bytes, 64 selectors
+across lists (including nested lists), 256 total combinator steps, 256 attribute
+and pseudo tests, and 16 nested `:has`/`:not` levels. Exceeding any ceiling
+returns `selector.limit` before evaluation.
 
 ## 7. Expressions
 
@@ -887,9 +908,9 @@ The first implementation optimizes for correctness, then linear behavior:
 - rendering an unchanged document should avoid rebuilding its full string;
 - edits should sort patches once, O(p log p), then apply them linearly.
 
-The public parse options will support byte, node, nesting-depth, and diagnostic
-limits. CLI defaults must be generous for normal documentation repositories but
-finite for untrusted input. Limit failures are diagnostics, not crashes.
+The CLI uses the finite library defaults for byte, node, nesting-depth,
+diagnostic, and selector complexity limits. Source-limit recovery is reported as
+warnings rather than crashes and always retains the original bytes.
 
 No 0.x throughput number is a compatibility promise. Benchmarks should include
 large generated documents, deeply nested blockquotes/lists, many headings, and
