@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Schemas
 
-- [Format validation diagnostics](todo/format-validation-diagnostics.md) — Stabilize diagnostic codes, locations, ordering, and JSON output.
 - [Expose validation API and CLI](todo/expose-validation-api-cli.md) — Add `validate` and the `mq validate` command.
 - [Validate before writing](todo/validate-before-writing.md) — Prevent output and in-place writes when requested schema validation fails.
 

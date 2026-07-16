@@ -915,6 +915,20 @@ interface Diagnostic {
 Codes are stable within a major version. Human wording may improve in minor
 versions. Parse, query, edit, and schema failures all use this representation.
 
+Validation diagnostics use the selected Markdown node as their primary `path`
+and `range`. Every rule diagnostic includes a note named
+`Schema rule N is defined here.` with the schema path and, for JSON source, the
+exact rule-object range. Diagnostics for typed schemas retain the schema path
+without inventing a source range. Uniqueness diagnostics additionally note the
+first occurrence. Notes and diagnostics are deeply immutable.
+
+Messages state the failed constraint and actionable actual/expected values;
+custom rule text is appended as a suffix. Within one document diagnostics use
+the source/rule/emission ordering defined above. When callers validate several
+documents, each document's ordered diagnostics are concatenated in caller input
+order. Human and JSON adapters consume this same array without re-sorting;
+`JSON.stringify` therefore has stable diagnostic, note, and document order.
+
 Fallible public functions return a discriminated `Result<T>`. Successes contain
 `ok: true`, a `value`, and any recovery diagnostics. Failures contain `ok: false`
 and at least one diagnostic. Result objects and their diagnostic arrays are
