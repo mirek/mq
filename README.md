@@ -77,6 +77,8 @@ See [Reproducible fuzz campaigns](docs/fuzzing.md) for the fixed seed, bounds,
 invariants, and regression-retention workflow.
 See [Performance and finite defaults](docs/performance.md) for the benchmark
 command, dated baseline, exported limits, and their rationale.
+See [Packed artifact verification](docs/package-artifacts.md) for tarball
+allowlists, provenance checks, and the isolated consumer test.
 
 The workspace installs its own `mq` binary at `node_modules/.bin/mq` so the test
 suite verifies the published library boundary and CLI adapter against the same
