@@ -5,6 +5,7 @@ import { nodeMarkdown } from "./expression.ts";
 import { decodeFrontmatter } from "./frontmatter.ts";
 import { validateJsonSchema } from "./json-schema.ts";
 import type { Document, MarkdownNode } from "./model.ts";
+import { resourceLimits } from "./resource-limits.ts";
 import {
   compileSelector,
   schemaNodeAttribute,
@@ -111,6 +112,14 @@ export const validateSchema = (
     rule: MarkdownSchemaRule | undefined,
     notes: readonly DiagnosticNote[] = [],
   ): void => {
+    if (ordered.length >= resourceLimits.validation.maxDiagnostics) return;
+    if (ordered.length === resourceLimits.validation.maxDiagnostics - 1) {
+      code = "schema.diagnostic-limit";
+      message = `Stopped reporting validation diagnostics after ${resourceLimits.validation.maxDiagnostics} entries.`;
+      ruleIndex = -1;
+      rule = undefined;
+      notes = [];
+    }
     const ruleRange = ruleIndex < 0 ? undefined : metadata?.rules[ruleIndex];
     const contextualNotes =
       ruleIndex < 0 || metadata === undefined

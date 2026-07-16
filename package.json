@@ -11,6 +11,7 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
+    "benchmark": "pnpm build && node benchmarks/resource-limits.mjs",
     "build": "pnpm --recursive --if-present run build",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "clean": "pnpm --recursive --if-present run clean",

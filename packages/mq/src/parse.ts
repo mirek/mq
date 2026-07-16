@@ -16,6 +16,7 @@ import type {
 
 import type { ConcreteDocument, ConcreteNode } from "./cst.ts";
 import type { Diagnostic } from "./diagnostic.ts";
+import { resourceLimits } from "./resource-limits.ts";
 import type {
   BlankLine,
   Block,
@@ -140,12 +141,7 @@ const utf8Width = (codePoint: number): number => {
 const frozenArray = <T>(values: readonly T[]): readonly T[] =>
   Object.freeze([...values]);
 
-const defaultParseLimits: ParseLimits = Object.freeze({
-  maxBytes: 16 * 1024 * 1024,
-  maxNodes: 100_000,
-  maxNestingDepth: 128,
-  maxDiagnostics: 100,
-});
+const defaultParseLimits: ParseLimits = resourceLimits.markdown;
 
 const limitValue = (
   value: number | undefined,

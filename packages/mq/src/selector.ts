@@ -9,6 +9,7 @@ import { RE2JS } from "re2js";
 import type { Diagnostic } from "./diagnostic.ts";
 import type { MarkdownNode } from "./model.ts";
 import { inlines } from "./parse.ts";
+import { resourceLimits } from "./resource-limits.ts";
 import { failure, success, type Result } from "./result.ts";
 import { sourcePosition, sourceRange } from "./source.ts";
 
@@ -142,12 +143,12 @@ const identifier = regexp(/[A-Za-z][A-Za-z0-9-]*/u);
 const positiveInteger = regexp(/[1-9]\d*/u);
 const quotedValue = regexp(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/su);
 const unquotedValue = regexp(/[^\s\]]+/u);
-const maxRegexPatternLength = 256;
-const maxSelectorBytes = 65_536;
-const maxSelectorListLength = 64;
-const maxSelectorSteps = 256;
-const maxSelectorTests = 256;
-const maxSelectorNesting = 16;
+const maxRegexPatternLength = resourceLimits.selector.maxRegexPatternLength;
+const maxSelectorBytes = resourceLimits.selector.maxBytes;
+const maxSelectorListLength = resourceLimits.selector.maxListLength;
+const maxSelectorSteps = resourceLimits.selector.maxSteps;
+const maxSelectorTests = resourceLimits.selector.maxTests;
+const maxSelectorNesting = resourceLimits.selector.maxNesting;
 
 class SelectorCompileError extends Error {
   readonly code: string;

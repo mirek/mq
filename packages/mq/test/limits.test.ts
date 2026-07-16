@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { compileSelector, parse, render } from "../src/index.ts";
+import {
+  compileExpression,
+  compileSelector,
+  loadSchema,
+  MQ_SCHEMA_V1,
+  parse,
+  render,
+  resourceLimits,
+  validate,
+} from "../src/index.ts";
 
 describe("parser recovery limits", () => {
   it("preserves an over-byte-limit document as one post-BOM opaque range", () => {
@@ -139,6 +148,85 @@ describe("selector compilation limits", () => {
         assert.equal(compiled.diagnostics[0].code, "selector.limit");
         assert.equal(compiled.diagnostics[0].source, "selector");
       }
+    }
+  });
+});
+
+describe("finite production defaults", () => {
+  it("publishes deeply immutable positive limits", () => {
+    assert.equal(Object.isFrozen(resourceLimits), true);
+    for (const group of Object.values(resourceLimits)) {
+      assert.equal(Object.isFrozen(group), true);
+      for (const value of Object.values(group)) {
+        assert.equal(Number.isSafeInteger(value) && value > 0, true);
+      }
+    }
+  });
+
+  it("bounds expression source and stage counts", () => {
+    for (const source of [
+      "x".repeat(resourceLimits.expression.maxBytes + 1),
+      Array.from(
+        { length: resourceLimits.expression.maxStages + 1 },
+        () => ".",
+      ).join(" | "),
+    ]) {
+      const compiled = compileExpression(source);
+      assert.equal(compiled.ok, false);
+      if (!compiled.ok) {
+        assert.equal(compiled.diagnostics[0].code, "expression.limit");
+      }
+    }
+  });
+
+  it("bounds schema bytes, depth, rules, and loading diagnostics", () => {
+    const tooLarge = loadSchema(" ".repeat(resourceLimits.schema.maxBytes + 1));
+    assert.equal(tooLarge.ok, false);
+    if (!tooLarge.ok) assert.equal(tooLarge.diagnostics[0].code, "schema.limit");
+
+    const nested = `${"[".repeat(resourceLimits.schema.maxDepth + 1)}null${"]".repeat(resourceLimits.schema.maxDepth + 1)}`;
+    const tooDeep = loadSchema(nested);
+    assert.equal(tooDeep.ok, false);
+    if (!tooDeep.ok) assert.equal(tooDeep.diagnostics[0].code, "schema.limit");
+
+    const tooManyRules = loadSchema({
+      $schema: MQ_SCHEMA_V1,
+      rules: Array.from(
+        { length: resourceLimits.schema.maxRules + 1 },
+        () => ({ selector: "heading", count: { min: 0 } }),
+      ),
+    });
+    assert.equal(tooManyRules.ok, false);
+    if (!tooManyRules.ok) assert.equal(tooManyRules.diagnostics[0].code, "schema.limit");
+
+    const noisy: Record<string, unknown> = {};
+    for (let index = 0; index < resourceLimits.schema.maxDiagnostics + 20; index += 1) {
+      noisy[`unknown-${index}`] = true;
+    }
+    const diagnostics = loadSchema(noisy);
+    assert.equal(diagnostics.ok, false);
+    if (!diagnostics.ok) {
+      assert.equal(diagnostics.diagnostics.length, resourceLimits.schema.maxDiagnostics);
+      assert.equal(diagnostics.diagnostics.at(-1)?.code, "schema.diagnostic-limit");
+    }
+  });
+
+  it("caps validation diagnostics", () => {
+    const source = Array.from(
+      { length: resourceLimits.validation.maxDiagnostics + 20 },
+      (_, index) => `# Heading ${index}\n`,
+    ).join("");
+    const document = parse(source);
+    assert.equal(document.ok, true);
+    if (!document.ok) return;
+    const result = validate(document.value, {
+      $schema: MQ_SCHEMA_V1,
+      rules: [{ selector: "heading", text: { enum: [] } }],
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.diagnostics.length, resourceLimits.validation.maxDiagnostics);
+      assert.equal(result.diagnostics.at(-1)?.code, "schema.diagnostic-limit");
     }
   });
 });

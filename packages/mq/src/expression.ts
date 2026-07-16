@@ -7,6 +7,7 @@ import {
 
 import type { Diagnostic } from "./diagnostic.ts";
 import type { Document, MarkdownNode } from "./model.ts";
+import { resourceLimits } from "./resource-limits.ts";
 import { failure, success, type Result } from "./result.ts";
 import { compileSelector, select, type CompiledSelector } from "./selector.ts";
 import {
@@ -260,6 +261,14 @@ const parseStage = (state: ParseState): CompiledStage => {
 };
 
 const parseExpression = (source: string): readonly CompiledStage[] => {
+  if (Buffer.byteLength(source) > resourceLimits.expression.maxBytes) {
+    throw new ExpressionCompileError(
+      `Expression source is limited to ${resourceLimits.expression.maxBytes} UTF-8 bytes.`,
+      0,
+      source.length,
+      "expression.limit",
+    );
+  }
   const state: ParseState = { source, offset: 0 };
   const stages: CompiledStage[] = [];
   skipWhitespace(state);
@@ -277,6 +286,14 @@ const parseExpression = (source: string): readonly CompiledStage[] => {
     state.offset += 1;
     skipWhitespace(state);
     stages.push(parseStage(state));
+    if (stages.length > resourceLimits.expression.maxStages) {
+      throw new ExpressionCompileError(
+        `Expressions are limited to ${resourceLimits.expression.maxStages} stages.`,
+        0,
+        source.length,
+        "expression.limit",
+      );
+    }
     skipWhitespace(state);
   }
 
