@@ -1,5 +1,6 @@
 import type { ConcreteDocument, ConcreteNode } from "./cst.ts";
 import type { Diagnostic } from "./diagnostic.ts";
+import type { SourceMap } from "./source-patch.ts";
 import type { SourceRange, SourceText } from "./source.ts";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
@@ -249,6 +250,7 @@ export interface Document {
   readonly range: SourceRange;
   readonly diagnostics: readonly Diagnostic[];
   readonly cst: ConcreteDocument;
+  readonly sourceMap?: SourceMap;
   readonly preamble: readonly Block[];
   readonly children: readonly (Block | Section)[];
   readonly sections: readonly Section[];

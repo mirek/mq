@@ -19,8 +19,9 @@ exposes validated, non-overlapping source-patch plans and exact
 retained/replacement source maps as its edit foundation. Lossless Markdown
 fragments can be parsed and planned at LF, CRLF, or mixed-newline boundaries,
 and composable planners cover replace/remove, before/after, prepend/append,
-titles, ATX levels, and task checks. Edited document snapshots, CLI writes, and
-validation remain under implementation.
+titles, ATX levels, and task checks. The library can apply a planned transaction
+to a new immutable, reparsed document with an immediate source map; CLI writes
+and validation remain under implementation.
 
 ```ts
 import {

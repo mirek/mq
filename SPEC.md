@@ -677,6 +677,15 @@ boolean `item.checked` when a task marker already exists. Other target or
 attribute combinations fail with `edit.target` or `edit.attribute`; invalid
 title values use `edit.value`.
 
+`applyEdits(document, operations)` is the immutable transaction boundary. It
+plans every operation first, applies one validated patch set, reparses the
+result, preserves the optional document path, and returns a new frozen
+`Document` whose `sourceMap` maps from the immediate input snapshot. A planning
+failure returns no document. An empty patch plan returns the original document
+identity. Non-empty edits rebuild the parsed tree because public ranges are
+immutable and even retained nodes can shift; a fresh parse of rendered output
+must have the same semantic JSON shape as the returned snapshot.
+
 Examples:
 
 ```mq
@@ -827,7 +836,8 @@ and edit failures do not throw. Programmer errors, such as passing an object
 that violates a compiled internal contract, may throw.
 
 Public collections are readonly. Mutations return a new document snapshot that
-structurally shares unchanged indexes and source slices where practical.
+shares the complete original identity for no-op edits and otherwise rebuilds
+range-bearing indexes from retained source plus replacements.
 
 The package exports JavaScript, declarations, and source maps as native ESM. It
 targets maintained Node.js releases starting with Node 24. A browser build is
