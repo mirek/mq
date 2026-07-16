@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to verify without publishing
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - id: metadata
+        run: node scripts/verify-release.mjs "$RELEASE_TAG" "$(npm --version)" >> "$GITHUB_OUTPUT"
+      - run: pnpm check
+      - run: mkdir release-artifacts
+      - run: pnpm --filter @prelude/mq pack --pack-destination release-artifacts
+      - run: pnpm --filter @prelude/mq-cli pack --pack-destination release-artifacts
+      - run: npm publish "release-artifacts/prelude-mq-${{ steps.metadata.outputs.version }}.tgz" --dry-run
+      - run: npm publish "release-artifacts/prelude-mq-cli-${{ steps.metadata.outputs.version }}.tgz" --dry-run
+
+  publish:
+    if: github.event_name == 'push'
+    needs: verify
+    permissions:
+      contents: write
+      id-token: write
+    environment: npm
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - id: metadata
+        run: node scripts/verify-release.mjs "$RELEASE_TAG" "$(npm --version)" >> "$GITHUB_OUTPUT"
+      - run: pnpm build
+      - run: mkdir release-artifacts
+      - run: pnpm --filter @prelude/mq pack --pack-destination release-artifacts
+      - run: pnpm --filter @prelude/mq-cli pack --pack-destination release-artifacts
+      - name: Publish core if absent
+        run: |
+          if npm view "@prelude/mq@${{ steps.metadata.outputs.version }}" version >/dev/null 2>&1; then
+            echo "@prelude/mq@${{ steps.metadata.outputs.version }} is already published"
+          else
+            npm publish "release-artifacts/prelude-mq-${{ steps.metadata.outputs.version }}.tgz" --access public
+          fi
+      - name: Publish CLI if absent
+        run: |
+          if npm view "@prelude/mq-cli@${{ steps.metadata.outputs.version }}" version >/dev/null 2>&1; then
+            echo "@prelude/mq-cli@${{ steps.metadata.outputs.version }} is already published"
+          else
+            npm publish "release-artifacts/prelude-mq-cli-${{ steps.metadata.outputs.version }}.tgz" --access public
+          fi
+      - run: gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "$RELEASE_TAG"
+        env:
+          GH_TOKEN: ${{ github.token }}

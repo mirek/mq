@@ -79,6 +79,8 @@ See [Performance and finite defaults](docs/performance.md) for the benchmark
 command, dated baseline, exported limits, and their rationale.
 See [Packed artifact verification](docs/package-artifacts.md) for tarball
 allowlists, provenance checks, and the isolated consumer test.
+See [Releases](docs/releases.md) for lockstep versions, tag verification, OIDC
+publishing order, provenance, and generated release notes.
 
 The workspace installs its own `mq` binary at `node_modules/.bin/mq` so the test
 suite verifies the published library boundary and CLI adapter against the same
