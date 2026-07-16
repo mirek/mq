@@ -17,7 +17,7 @@
     "clean": "pnpm --recursive --if-present run clean",
     "lint": "oxlint --deny-warnings .",
     "test": "pnpm --recursive --if-present run test",
-    "test:artifacts": "pnpm build && node --test test/artifacts.test.mjs",
+    "test:artifacts": "pnpm build && node --test test/*.test.mjs",
     "typecheck": "pnpm --recursive --if-present run typecheck"
   },
   "devDependencies": {

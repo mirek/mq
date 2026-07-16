@@ -990,6 +990,13 @@ workspaces and installs the tarballs into an isolated consumer, where strict
 NodeNext declarations, ESM imports, source maps, and the executable `mq` wiring
 must work without repository files or workspace links.
 
+Releases use one non-zero stable semantic version for the workspace and both
+packages and an immutable matching `vX.Y.Z` tag. CI rejects prereleases,
+mismatched metadata, unsupported trusted-publishing clients, or unverified
+artifacts. It publishes `@prelude/mq` before `@prelude/mq-cli` using npm OIDC
+with provenance, then creates the GitHub release with generated categorized
+notes. A manually dispatched release is verification-only and cannot publish.
+
 ## 10. CLI
 
 ### 10.1 Invocation
@@ -1207,6 +1214,12 @@ Packages follow semantic versioning. Before 1.0, public API and language changes
 may occur in minor releases, but each change requires release notes and updated
 fixtures. Schema files carry an explicit language URL so validators can reject
 unsupported versions rather than guessing.
+
+The library and CLI are versioned in lockstep. Release preparation changes all
+three workspace manifest versions in one reviewed commit; an annotated or
+signed matching tag is created from that commit after it reaches `main`. Release
+tags are never moved or reused. Generated GitHub release notes are the project
+changelog and derive their categories from pull-request labels.
 
 The following eventually require a major version after 1.0:
 

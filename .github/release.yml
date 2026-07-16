@@ -1,0 +1,19 @@
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Breaking changes
+      labels: [breaking-change, semver-major]
+    - title: Features
+      labels: [enhancement, semver-minor]
+    - title: Fixes
+      labels: [bug, semver-patch]
+    - title: Documentation
+      labels: [documentation]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Internal changes
+      labels: [internal, ci, tests]
+    - title: Other changes
+      labels: ["*"]

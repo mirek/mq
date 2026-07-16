@@ -7,6 +7,5 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Hardening and release
 
-- [Automate releases](todo/automate-releases.md) — Add release CI and a generated changelog policy.
 - [Ship executable examples](todo/ship-executable-examples.md) — Cover querying, modifying, creating, and validating in end-to-end fixtures.
 - [Review public contracts](todo/review-public-contracts.md) — Review every public 0.x contract before the first release.
