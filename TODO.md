@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Complete Markdown and selectors
 
-- [Complete selector language](todo/complete-selector-language.md) — Add the remaining operators, sibling combinators, lists, and pseudos.
 - [Bound parser recovery](todo/bound-parser-recovery.md) — Make opaque recovery deterministic and enforce finite parser and selector resource limits.
 - [Run Markdown conformance](todo/run-markdown-conformance.md) — Validate CommonMark/GFM behavior and mq losslessness against conformance corpora.
 

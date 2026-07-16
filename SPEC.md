@@ -145,6 +145,14 @@ source ranges and exact rendering. Reimplementing those boundary rules beside
 micromark would risk disagreeing with the CommonMark parser at the document
 boundary.
 
+**Decision — bounded selector regular expressions.** `:matches` uses `re2js`
+2.8.6 instead of JavaScript's backtracking `RegExp`. RE2JS is a pure-JavaScript
+finite-automata engine, so matching remains linear in input length without
+filesystem access, native installation steps, workers, or asynchronous API
+changes. Patterns that require backreferences or lookaround are rejected; this
+compatibility tradeoff materially reduces denial-of-service risk from selectors
+supplied by schemas or command-line users.
+
 ## 5. Document model
 
 ### 5.1 Source coordinates
@@ -380,22 +388,9 @@ schema.
 Selectors are CSS-like strings parsed by `@prelude/parser`. They operate over
 the derived tree and return nodes in source order without duplicates.
 
-### 6.1 Core syntax
+### 6.1 Syntax
 
-The lossless-sections slice implements:
-
-- type selectors for every documented node type;
-- the universal selector `*`;
-- typed equality attributes such as `[level=2]` and `[title="Install"]`;
-- descendant and child combinators: `section code`, `section > code`.
-
-Numeric attributes require unquoted numeric values, boolean attributes require
-unquoted `true` or `false`, and string values may be quoted or unquoted. A
-backslash escapes the following character in a quoted string. Unsupported
-syntax and values of the wrong attribute type produce immutable selector
-diagnostics rather than throwing.
-
-The complete selector language additionally supports:
+The selector language supports:
 
 - type selectors: `section`, `heading`, `code`;
 - universal selector: `*`;
@@ -408,14 +403,34 @@ The complete selector language additionally supports:
   `:contains("text")`, `:matches(/pattern/flags)`, `:has(selector)`, and
   `:not(selector)`.
 
+A compound may omit its type before an attribute or pseudo, so `[level=2]` and
+`:first-child` imply the universal selector. Whitespace is the descendant
+combinator except around an explicit combinator, attribute token, list comma, or
+pseudo argument. A backslash escapes the following character in a quoted
+string.
+
 Attribute names and type names are ASCII case-insensitive. String values are
 case-sensitive. Numeric and boolean attributes use typed comparisons; applying
 an ordered comparison to a nonnumeric attribute is a selector type error.
+Numeric values must be unquoted and boolean values must be unquoted `true` or
+`false`. `^=`, `$=`, `*=`, and `~=` require string attributes; `~=` tests one
+ASCII-whitespace-separated word. Presence requires the attribute to exist, even
+when its value is `false`. Every other operator requires the attribute to exist,
+so a missing attribute does not satisfy `!=`.
 
 `:contains` searches decoded plain text recursively. `:matches` uses JavaScript
-regular-expression syntax but rejects unsupported flags and invalid patterns at
-parse time. Regex evaluation must be bounded so a schema cannot hang a process;
-the implementation plan includes adversarial cases before this pseudo ships.
+regular-expression literal delimiters and the RE2-compatible syntax subset.
+Flags are limited to `i`, `m`, `s`, and the accepted no-op compatibility flag
+`u`; duplicates, other flags, invalid patterns, lookaround, and backreferences
+are rejected at compile time. Patterns are limited to 256 UTF-16 code units and
+execute with RE2JS's linear-time finite-automata engine.
+
+`:first-child`, `:last-child`, and the one-based positive integer
+`:nth-child(n)` use selector-facing children; a root without a parent satisfies
+none of them. `:has` accepts relative selector lists. An omitted leading
+combinator means descendant, while `>`, `+`, or `~` means child, adjacent
+sibling, or general sibling relative to the candidate. `:not` accepts ordinary,
+non-relative selector lists.
 
 ### 6.2 Section behavior
 
@@ -451,6 +466,11 @@ adapters may be supplied separately.
 returns a frozen readonly node array, includes the supplied root by default, and
 deduplicates node identities while preserving selector-facing source order.
 Passing `{ includeRoot: false }` starts traversal at the root's children.
+
+Malformed syntax uses `selector.syntax`, invalid typed operators or values use
+`selector.attribute-type`, and invalid, unsupported, or overlong regular
+expressions use `selector.regex`. Each is an immutable error diagnostic over the
+selector source.
 
 ## 7. Expressions
 
@@ -862,6 +882,8 @@ The first implementation optimizes for correctness, then linear behavior:
 - parsing should be O(source length);
 - section derivation should be O(number of block nodes);
 - a compiled simple selector should be O(number of candidate nodes);
+- regular-expression matching should be O(decoded text length) with patterns
+  capped at 256 UTF-16 code units;
 - rendering an unchanged document should avoid rebuilding its full string;
 - edits should sort patches once, O(p log p), then apply them linearly.
 
