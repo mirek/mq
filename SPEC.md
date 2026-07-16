@@ -137,6 +137,14 @@ tables, task items, strikethrough, and literal autolinks on the tokenizer and
 semantic tree versions designed to interoperate, without introducing another
 parser or serializer.
 
+**Decision — frontmatter semantic extensions.** The adapter enables
+`micromark-extension-frontmatter` 2.0.0 and `mdast-util-frontmatter` 2.0.1 as a
+paired tokenizer and tree extension. These packages enforce document-head,
+container, closing-fence, and one-per-document rules while mq continues to own
+source ranges and exact rendering. Reimplementing those boundary rules beside
+micromark would risk disagreeing with the CommonMark parser at the document
+boundary.
+
 ## 5. Document model
 
 ### 5.1 Source coordinates
@@ -233,6 +241,20 @@ interface CodeBlock {
   readonly value: string;
 }
 
+interface Frontmatter {
+  readonly type: "frontmatter";
+  readonly format: "yaml" | "toml" | "json";
+  readonly value: string;
+}
+
+interface Definition {
+  readonly type: "definition";
+  readonly reference: string;
+  readonly label?: string;
+  readonly destination: string;
+  readonly title?: string;
+}
+
 interface Table {
   readonly type: "table";
   readonly alignments: readonly ("left" | "right" | "center" | undefined)[];
@@ -270,7 +292,9 @@ items remain ordinary flow children and do not affect section hierarchy.
 CommonMark paragraph and heading inline views include decoded text, emphasis,
 strong emphasis, inline code, hard breaks, links, images, and inline HTML.
 Links and images expose either decoded destinations and optional titles or a
-normalized reference identifier. Unsupported extension nodes remain opaque.
+normalized reference identifier. Definitions expose that same normalized
+identifier as `reference`, their source label when present, and decoded
+destination and optional title. Unsupported extension nodes remain opaque.
 GFM tables expose ordered rows and cells, per-column alignment, and header
 flags. Table cells participate in the same lazy `inlines` API as headings and
 paragraphs. Task-list markers populate `item.checked`; strikethrough is a
@@ -279,6 +303,15 @@ recursive inline node; URL and email literals become ordinary link nodes.
 The document preamble contains blocks before the first heading. Those blocks are
 also the initial non-section entries in `document.children`. Frontmatter, when
 present, belongs to the preamble.
+
+Frontmatter can occur only once, immediately after an optional BOM, outside all
+containers, and with a closing fence. YAML uses complete `---` fence lines,
+TOML uses `+++`, and JSON uses an opening line containing `{` and a closing line
+containing `}`. Fence lines may have trailing spaces or tabs and must end at a
+line ending or EOF. The JSON form is therefore line-fenced; a single-line JSON
+object is ordinary Markdown. `value` excludes the opening and closing lines but
+retains the payload without interpreting YAML, TOML, or JSON. Format decoding
+and validation are deferred to schemas.
 
 ### 5.4 Heading nesting
 
@@ -322,7 +355,7 @@ Initial selectors recognize these type names:
 | Type | Important attributes |
 | --- | --- |
 | `document` | `path`, when supplied by the caller |
-| `frontmatter` | `format` (`yaml`, `toml`, `json`) |
+| `frontmatter` | `format` (`yaml`, `toml`, `json`), `value` |
 | `section` | `level`, `title`, `slug` |
 | `heading` | `level`, `title`, `slug`, `style` |
 | `paragraph` | — |
@@ -332,7 +365,8 @@ Initial selectors recognize these type names:
 | `code` | `language`, `meta`, `fenced` |
 | `table`, `row`, `cell` | `alignment`, `header` |
 | `link`, `image` | `destination`, `title`, `reference` |
-| `html`, `thematic-break`, `definition`, `text` | kind-specific values |
+| `definition` | `reference`, `label`, `destination`, `title` |
+| `html`, `thematic-break`, `text` | kind-specific values |
 | `emphasis`, `strong`, `inline-code`, `break` | recursive children or decoded value |
 | `opaque` | `reason` |
 
@@ -503,8 +537,9 @@ default selector API behavior. Streams and collected arrays are immutable.
 document exactly. `text` recursively joins direct child text with `\n`, uses
 decoded heading titles and text-inline values, normalizes retained block line
 endings to `\n`, and removes one final block newline. Blank lines emit an empty
-string. Until a retained node has a decoded inline or block view, its source
-content remains literal in this projection.
+string. Frontmatter and definitions are out-of-band and also emit an empty
+string. Until another retained node has a decoded inline or block view, its
+source content remains literal in this projection.
 
 `json` recursively converts values to deeply frozen JSON-compatible data.
 Arrays preserve order and object keys use ascending code-unit order so
@@ -518,6 +553,8 @@ source ranges and concrete parser nodes are deliberately excluded:
 | heading | `type`, `level`, `title`, `style` |
 | paragraph | `type`, projected `text` |
 | blank line | `type` |
+| frontmatter | `type`, `format`, undecoded `value` |
+| definition | `type`, `reference`, optional `label`, `destination`, optional `title` |
 | blockquote | `type`, recursive `children` |
 | list | `type`, `ordered`, optional `start`, `tight`, recursive `children` |
 | item | `type`, optional `checked`, recursive `children` |

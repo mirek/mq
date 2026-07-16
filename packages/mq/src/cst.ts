@@ -4,6 +4,8 @@ export type ConcreteNodeKind =
   | "document"
   | "bom"
   | "blank-line"
+  | "frontmatter"
+  | "definition"
   | "atx-heading"
   | "setext-heading"
   | "paragraph"

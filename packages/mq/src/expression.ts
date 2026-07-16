@@ -382,6 +382,7 @@ const textOf = (node: MarkdownNode, context: EvaluationContext): string => {
   if (node.type === "image") return node.alt;
   if (node.type === "break") return "\n";
   if (node.type === "html") return node.value;
+  if (node.type === "frontmatter" || node.type === "definition") return "";
   if (
     node.type === "emphasis" ||
     node.type === "strong" ||
@@ -449,6 +450,22 @@ const nodeToJson = (
   }
   if (node.type === "blank-line") {
     return canonicalObject([["type", node.type]]);
+  }
+  if (node.type === "frontmatter") {
+    return canonicalObject([
+      ["format", node.format],
+      ["type", node.type],
+      ["value", node.value],
+    ]);
+  }
+  if (node.type === "definition") {
+    return canonicalObject([
+      ["destination", node.destination],
+      ...(node.label === undefined ? [] : [["label", node.label] as const]),
+      ["reference", node.reference],
+      ...(node.title === undefined ? [] : [["title", node.title] as const]),
+      ["type", node.type],
+    ]);
   }
   if (node.type === "blockquote") {
     return canonicalObject([

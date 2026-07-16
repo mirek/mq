@@ -64,6 +64,7 @@ const attributeTypes = new Map<string, "boolean" | "number" | "string">([
   ["format", "string"],
   ["header", "boolean"],
   ["language", "string"],
+  ["label", "string"],
   ["level", "number"],
   ["meta", "string"],
   ["ordered", "boolean"],
@@ -329,6 +330,8 @@ const attributeOf = (
     return slug(node.title);
   }
   if (name === "style" && node.type === "heading") return node.style;
+  if (name === "format" && node.type === "frontmatter") return node.format;
+  if (name === "label" && node.type === "definition") return node.label;
   if (name === "ordered" && node.type === "list") return node.ordered;
   if (name === "start" && node.type === "list") return node.start;
   if (name === "tight" && node.type === "list") return node.tight;
@@ -342,16 +345,25 @@ const attributeOf = (
   if (name === "fenced" && node.type === "code") return node.fenced;
   if (
     name === "destination" &&
-    (node.type === "link" || node.type === "image")
+    (node.type === "link" ||
+      node.type === "image" ||
+      node.type === "definition")
   ) {
     return node.destination;
   }
-  if (name === "title" && (node.type === "link" || node.type === "image")) {
+  if (
+    name === "title" &&
+    (node.type === "link" ||
+      node.type === "image" ||
+      node.type === "definition")
+  ) {
     return node.title;
   }
   if (
     name === "reference" &&
-    (node.type === "link" || node.type === "image")
+    (node.type === "link" ||
+      node.type === "image" ||
+      node.type === "definition")
   ) {
     return node.reference;
   }
@@ -361,7 +373,8 @@ const attributeOf = (
     (node.type === "text" ||
       node.type === "inline-code" ||
       node.type === "code" ||
-      node.type === "html")
+      node.type === "html" ||
+      node.type === "frontmatter")
   ) {
     return node.value;
   }
