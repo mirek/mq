@@ -193,9 +193,9 @@ describe("mq query CLI", () => {
 
   it("reports recovery warnings and I/O failures with stable statuses", () => {
     assertResult(
-      run(["."], "> retained\n"),
+      run(["."], "[retained]: /target\n"),
       0,
-      "> retained\n",
+      "[retained]: /target\n",
       "markdown:1:1: warning[markdown.opaque-block]: Preserved an unsupported Markdown block as opaque source.\n",
     );
     assertResult(

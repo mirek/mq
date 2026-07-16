@@ -159,7 +159,7 @@ describe("public API and installed CLI equivalence", () => {
   });
 
   it("returns parse diagnostics in the same order as the parser", () => {
-    const opaque = "> first\n\n```md\nsecond\n```\n";
+    const opaque = "[first]: /one\n\n[second]: /two\n";
     const parsed = parse(opaque);
     assert.equal(parsed.ok, true);
 

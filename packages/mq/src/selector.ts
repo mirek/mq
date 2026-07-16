@@ -9,6 +9,7 @@ import {
 
 import type { Diagnostic } from "./diagnostic.ts";
 import type { MarkdownNode } from "./model.ts";
+import { inlines } from "./parse.ts";
 import { failure, success, type Result } from "./result.ts";
 import { sourcePosition, sourceRange } from "./source.ts";
 
@@ -281,8 +282,20 @@ export const compileSelector = (
 };
 
 const childrenOf = (node: MarkdownNode): readonly MarkdownNode[] => {
-  if (node.type === "document" || node.type === "section") {
+  if (
+    node.type === "document" ||
+    node.type === "section" ||
+    node.type === "blockquote" ||
+    node.type === "list" ||
+    node.type === "item" ||
+    node.type === "emphasis" ||
+    node.type === "strong" ||
+    node.type === "link"
+  ) {
     return node.children;
+  }
+  if (node.type === "heading" || node.type === "paragraph") {
+    return inlines(node);
   }
   return [];
 };
@@ -309,8 +322,38 @@ const attributeOf = (
     return slug(node.title);
   }
   if (name === "style" && node.type === "heading") return node.style;
+  if (name === "ordered" && node.type === "list") return node.ordered;
+  if (name === "start" && node.type === "list") return node.start;
+  if (name === "tight" && node.type === "list") return node.tight;
+  if (name === "checked" && node.type === "item") return node.checked;
+  if (name === "language" && node.type === "code") return node.language;
+  if (name === "meta" && node.type === "code") return node.meta;
+  if (name === "fenced" && node.type === "code") return node.fenced;
+  if (
+    name === "destination" &&
+    (node.type === "link" || node.type === "image")
+  ) {
+    return node.destination;
+  }
+  if (name === "title" && (node.type === "link" || node.type === "image")) {
+    return node.title;
+  }
+  if (
+    name === "reference" &&
+    (node.type === "link" || node.type === "image")
+  ) {
+    return node.reference;
+  }
   if (name === "reason" && node.type === "opaque") return node.reason;
-  if (name === "value" && node.type === "text") return node.value;
+  if (
+    name === "value" &&
+    (node.type === "text" ||
+      node.type === "inline-code" ||
+      node.type === "code" ||
+      node.type === "html")
+  ) {
+    return node.value;
+  }
   return undefined;
 };
 

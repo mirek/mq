@@ -1,14 +1,39 @@
+import { fromMarkdown } from "mdast-util-from-markdown";
+import type {
+  Heading as MdastHeading,
+  ListItem as MdastListItem,
+  Paragraph as MdastParagraph,
+  PhrasingContent as MdastPhrasingContent,
+  RootContent as MdastRootContent,
+} from "mdast";
+
 import type { ConcreteDocument, ConcreteNode } from "./cst.ts";
 import type { Diagnostic } from "./diagnostic.ts";
 import type {
   BlankLine,
   Block,
+  Blockquote,
+  BreakInline,
+  CodeBlock,
   Document,
+  Emphasis,
+  FlowNode,
   Heading,
   HeadingLevel,
+  HtmlNode,
+  Image,
+  Inline,
+  InlineCode,
+  InlineContainer,
+  Link,
+  ListBlock,
+  ListItem,
   OpaqueBlock,
+  OpaqueInline,
   Paragraph,
   Section,
+  Strong,
+  ThematicBreak,
 } from "./model.ts";
 import { success, type Result } from "./result.ts";
 import {
@@ -43,13 +68,17 @@ interface ParsedBlock {
   readonly derived: Block | Heading;
 }
 
-interface AtxHeadingMatch {
-  readonly level: HeadingLevel;
-  readonly title: string;
+interface CommonMarkContext {
+  readonly source: string;
+  readonly sourceOffset: number;
+  readonly index: SourceIndex;
+  readonly path?: string;
+  readonly diagnostics: Diagnostic[];
 }
 
-interface SetextHeadingMatch {
-  readonly level: 1 | 2;
+interface InlineProgram {
+  readonly nodes: readonly MdastPhrasingContent[];
+  readonly context: CommonMarkContext;
 }
 
 interface SectionBuilder {
@@ -65,6 +94,15 @@ interface DerivedSections {
   readonly preamble: readonly Block[];
   readonly children: readonly (Block | Section)[];
   readonly sections: readonly Section[];
+}
+
+interface PositionedNode {
+  readonly position?:
+    | {
+        readonly start: { readonly offset?: number | undefined };
+        readonly end: { readonly offset?: number | undefined };
+      }
+    | undefined;
 }
 
 const utf8Width = (codePoint: number): number => {
@@ -247,223 +285,479 @@ const makeSourceText = (
     ...(text.startsWith("\uFEFF") ? { bom: index.range(0, 1) } : {}),
     dominantNewline: dominant,
     mixedNewlines: frozenArray(mixedNewlines),
-    hasFinalNewline:
-      text.endsWith("\n") || text.endsWith("\r"),
+    hasFinalNewline: text.endsWith("\n") || text.endsWith("\r"),
   });
 };
 
 const concreteNode = <Kind extends ConcreteNode["kind"]>(
   kind: Kind,
   range: SourceRange,
+  children: readonly ConcreteNode[] = [],
 ): ConcreteNode<Kind> =>
-  Object.freeze({ kind, range, children: Object.freeze([]) });
-
-const atxHeading = (content: string): AtxHeadingMatch | undefined => {
-  const match = /^ {0,3}(#{1,6})(?:[\t ]+(.*?)|[\t ]*)$/u.exec(content);
-  if (match === null) return undefined;
-
-  const markers = match[1];
-  if (markers === undefined) return undefined;
-
-  const rawTitle = match[2] ?? "";
-  const title = rawTitle.replace(/[\t ]+#+[\t ]*$/u, "").trim();
-  return {
-    level: markers.length as HeadingLevel,
-    title,
-  };
-};
-
-const setextHeading = (content: string): SetextHeadingMatch | undefined => {
-  const match = /^ {0,3}(=+|-+)[\t ]*$/u.exec(content);
-  const underline = match?.[1];
-  if (underline === undefined) return undefined;
-  return { level: underline[0] === "=" ? 1 : 2 };
-};
+  Object.freeze({ kind, range, children: frozenArray(children) });
 
 const isBlank = (content: string): boolean => /^[\t ]*$/u.test(content);
 
-const fence = (content: string): { marker: "`" | "~"; width: number } | undefined => {
-  const match = /^ {0,3}(`{3,}|~{3,})/u.exec(content);
-  const markers = match?.[1];
-  if (markers === undefined) return undefined;
-  return { marker: markers[0] as "`" | "~", width: markers.length };
-};
+const inlinePrograms = new WeakMap<InlineContainer, InlineProgram>();
+const inlineViews = new WeakMap<InlineContainer, readonly Inline[]>();
 
-const isUnsupportedBlockStart = (content: string): boolean =>
-  fence(content) !== undefined ||
-  /^(?: {4}|\t)/u.test(content) ||
-  /^ {0,3}>/u.test(content) ||
-  /^ {0,3}(?:[*+-][\t ]+|\d{1,9}[.)][\t ]+)/u.test(content) ||
-  /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:_[\t ]*){3,}|(?:-[\t ]*){3,})$/u.test(
-    content,
-  ) ||
-  /^ {0,3}\[[^\]]+\]:/u.test(content) ||
-  /^ {0,3}<(?:[A-Za-z!/]|\?)/u.test(content);
-
-const fenceEnd = (
-  lines: readonly SourceLine[],
-  start: number,
-  opener: { readonly marker: "`" | "~"; readonly width: number },
-): number => {
-  for (let current = start + 1; current < lines.length; current += 1) {
-    const content = lines[current]?.content;
-    if (content === undefined) break;
-    const match = /^ {0,3}(`+|~+)[\t ]*$/u.exec(content);
-    const markers = match?.[1];
-    if (
-      markers !== undefined &&
-      markers[0] === opener.marker &&
-      markers.length >= opener.width
-    ) {
-      return current;
-    }
+const nodeOffsets = (
+  node: PositionedNode,
+  context: CommonMarkContext,
+): readonly [number, number] => {
+  const start = node.position?.start.offset;
+  const end = node.position?.end.offset;
+  if (start === undefined || end === undefined) {
+    throw new TypeError("CommonMark node must have source offsets");
   }
-  return lines.length - 1;
+  return [start + context.sourceOffset, end + context.sourceOffset];
 };
 
-const parseBlocks = (
-  lines: readonly SourceLine[],
-  index: SourceIndex,
-  path: string | undefined,
-): { readonly blocks: readonly ParsedBlock[]; readonly diagnostics: readonly Diagnostic[] } => {
-  const blocks: ParsedBlock[] = [];
-  const diagnostics: Diagnostic[] = [];
-  let current = 0;
+const extendThroughNewline = (source: string, end: number): number => {
+  if (source[end] === "\r" && source[end + 1] === "\n") return end + 2;
+  if (source[end] === "\r" || source[end] === "\n") return end + 1;
+  return end;
+};
 
-  const addOpaque = (startLine: number, endLine: number): void => {
-    const first = lines[startLine];
-    const last = lines[endLine];
-    if (first === undefined || last === undefined) return;
+const nodeRange = (
+  node: PositionedNode,
+  context: CommonMarkContext,
+  trailingNewline = false,
+): SourceRange => {
+  const [start, rawEnd] = nodeOffsets(node, context);
+  const end = trailingNewline
+    ? extendThroughNewline(context.source, rawEnd)
+    : rawEnd;
+  return context.index.range(start, end);
+};
 
-    const range = index.range(first.start, last.end);
-    const concrete = concreteNode("opaque", range);
-    const reason = "unsupported-block";
-    const derived: OpaqueBlock = Object.freeze({
-      type: "opaque",
+const inlineRange = (
+  nodes: readonly MdastPhrasingContent[],
+  fallback: SourceRange,
+  context: CommonMarkContext,
+): SourceRange => {
+  const first = nodes[0];
+  const last = nodes.at(-1);
+  if (first === undefined || last === undefined) {
+    return sourceRange(fallback.end, fallback.end);
+  }
+  const [start] = nodeOffsets(first, context);
+  const [, end] = nodeOffsets(last, context);
+  return context.index.range(start, end);
+};
+
+const phrasingText = (nodes: readonly MdastPhrasingContent[]): string =>
+  nodes
+    .map((node): string => {
+      if (node.type === "text" || node.type === "inlineCode") return node.value;
+      if (node.type === "break") return "\n";
+      if (node.type === "image" || node.type === "imageReference") {
+        return node.alt ?? "";
+      }
+      if (node.type === "html") return node.value;
+      if ("children" in node) {
+        return phrasingText(node.children as readonly MdastPhrasingContent[]);
+      }
+      return "";
+    })
+    .join("");
+
+const registerInlineProgram = <T extends InlineContainer>(
+  container: T,
+  nodes: readonly MdastPhrasingContent[],
+  context: CommonMarkContext,
+): T => {
+  inlinePrograms.set(container, { nodes, context });
+  return container;
+};
+
+const convertInline = (
+  node: MdastPhrasingContent,
+  context: CommonMarkContext,
+): Inline => {
+  const range = nodeRange(node, context);
+  if (node.type === "text") {
+    const concrete = concreteNode("text", range);
+    return Object.freeze({ type: "text", range, concrete, value: node.value });
+  }
+
+  if (node.type === "emphasis" || node.type === "strong") {
+    const children = frozenArray(
+      node.children.map((child) => convertInline(child, context)),
+    );
+    if (node.type === "emphasis") {
+      const concrete = concreteNode(
+        "emphasis",
+        range,
+        children.map((child) => child.concrete),
+      );
+      return Object.freeze({
+        type: "emphasis",
+        range,
+        concrete,
+        children,
+      }) satisfies Emphasis;
+    }
+    const concrete = concreteNode(
+      "strong",
+      range,
+      children.map((child) => child.concrete),
+    );
+    return Object.freeze({
+      type: "strong",
       range,
       concrete,
-      reason,
-    });
-    blocks.push(Object.freeze({ concrete, derived }));
-    diagnostics.push(
-      Object.freeze({
-        code: "markdown.opaque-block",
-        severity: "warning",
-        message: "Preserved an unsupported Markdown block as opaque source.",
-        source: "markdown",
-        ...(path === undefined ? {} : { path }),
-        range,
-      }),
+      children,
+    }) satisfies Strong;
+  }
+
+  if (node.type === "inlineCode") {
+    const concrete = concreteNode("inline-code", range);
+    return Object.freeze({
+      type: "inline-code",
+      range,
+      concrete,
+      value: node.value,
+    }) satisfies InlineCode;
+  }
+
+  if (node.type === "break") {
+    const concrete = concreteNode("break", range);
+    return Object.freeze({
+      type: "break",
+      range,
+      concrete,
+    }) satisfies BreakInline;
+  }
+
+  if (node.type === "link" || node.type === "linkReference") {
+    const children = frozenArray(
+      node.children.map((child) => convertInline(child, context)),
     );
-  };
+    const concrete = concreteNode(
+      "link",
+      range,
+      children.map((child) => child.concrete),
+    );
+    return Object.freeze({
+      type: "link",
+      range,
+      concrete,
+      ...(node.type === "link"
+        ? { destination: node.url }
+        : { reference: node.identifier }),
+      ...(node.type === "link" && node.title !== null && node.title !== undefined
+        ? { title: node.title }
+        : {}),
+      children,
+    }) satisfies Link;
+  }
 
-  while (current < lines.length) {
-    const line = lines[current];
-    if (line === undefined) break;
+  if (node.type === "image" || node.type === "imageReference") {
+    const concrete = concreteNode("image", range);
+    return Object.freeze({
+      type: "image",
+      range,
+      concrete,
+      ...(node.type === "image"
+        ? { destination: node.url }
+        : { reference: node.identifier }),
+      ...(node.type === "image" && node.title !== null && node.title !== undefined
+        ? { title: node.title }
+        : {}),
+      alt: node.alt ?? "",
+    }) satisfies Image;
+  }
 
-    if (isBlank(line.content)) {
-      const range = index.range(line.start, line.end);
-      const concrete = concreteNode("blank-line", range);
-      const derived: BlankLine = Object.freeze({
-        type: "blank-line",
-        range,
-        concrete,
-      });
-      blocks.push(Object.freeze({ concrete, derived }));
-      current += 1;
-      continue;
-    }
+  if (node.type === "html") {
+    const concrete = concreteNode("html-inline", range);
+    return Object.freeze({
+      type: "html",
+      range,
+      concrete,
+      value: node.value,
+    }) satisfies HtmlNode;
+  }
 
-    const atx = atxHeading(line.content);
-    if (atx !== undefined) {
-      const range = index.range(line.start, line.end);
-      const concrete = concreteNode("atx-heading", range);
-      const derived: Heading = Object.freeze({
-        type: "heading",
-        range,
-        concrete,
-        level: atx.level,
-        title: atx.title,
-        style: "atx",
-      });
-      blocks.push(Object.freeze({ concrete, derived }));
-      current += 1;
-      continue;
-    }
+  const concrete = concreteNode("opaque", range);
+  return Object.freeze({
+    type: "opaque",
+    range,
+    concrete,
+    reason: `unsupported-inline-${node.type}`,
+  }) satisfies OpaqueInline;
+};
 
-    const opener = fence(line.content);
-    if (opener !== undefined) {
-      const end = fenceEnd(lines, current, opener);
-      addOpaque(current, end);
-      current = end + 1;
-      continue;
-    }
+/** Materializes and caches a block's immutable semantic inline view. */
+export const inlines = (container: InlineContainer): readonly Inline[] => {
+  const existing = inlineViews.get(container);
+  if (existing !== undefined) return existing;
+  const program = inlinePrograms.get(container);
+  if (program === undefined) {
+    throw new TypeError("inline container must be produced by parse");
+  }
+  const view = frozenArray(
+    program.nodes.map((node) => convertInline(node, program.context)),
+  );
+  inlineViews.set(container, view);
+  return view;
+};
 
-    if (
-      setextHeading(line.content) !== undefined ||
-      isUnsupportedBlockStart(line.content)
-    ) {
-      addOpaque(current, current);
-      current += 1;
-      continue;
-    }
+const headingStyle = (
+  node: MdastHeading,
+  context: CommonMarkContext,
+): "atx" | "setext" => {
+  const [start] = nodeOffsets(node, context);
+  return /^ {0,3}#{1,6}(?:[\t ]|$)/u.test(context.source.slice(start))
+    ? "atx"
+    : "setext";
+};
 
-    const start = current;
-    const titleLines: string[] = [];
-    let setext: SetextHeadingMatch | undefined;
+const convertHeading = (
+  node: MdastHeading,
+  context: CommonMarkContext,
+  range: SourceRange,
+): Heading => {
+  const style = headingStyle(node, context);
+  const concrete = concreteNode(
+    style === "atx" ? "atx-heading" : "setext-heading",
+    range,
+  );
+  return registerInlineProgram(
+    Object.freeze({
+      type: "heading",
+      range,
+      concrete,
+      level: node.depth as HeadingLevel,
+      title: phrasingText(node.children),
+      style,
+      inlineRange: inlineRange(node.children, range, context),
+    }),
+    node.children,
+    context,
+  );
+};
 
-    while (current < lines.length) {
-      const paragraphLine = lines[current];
-      if (paragraphLine === undefined) break;
-
-      if (titleLines.length > 0) {
-        setext = setextHeading(paragraphLine.content);
-        if (setext !== undefined) {
-          current += 1;
-          break;
-        }
-      }
-
-      if (
-        isBlank(paragraphLine.content) ||
-        atxHeading(paragraphLine.content) !== undefined ||
-        isUnsupportedBlockStart(paragraphLine.content)
-      ) {
-        break;
-      }
-
-      titleLines.push(paragraphLine.content);
-      current += 1;
-    }
-
-    const first = lines[start];
-    const last = lines[current - 1];
-    if (first === undefined || last === undefined) continue;
-    const range = index.range(first.start, last.end);
-
-    if (setext !== undefined) {
-      const concrete = concreteNode("setext-heading", range);
-      const derived: Heading = Object.freeze({
-        type: "heading",
-        range,
-        concrete,
-        level: setext.level,
-        title: titleLines.join(" ").trim(),
-        style: "setext",
-      });
-      blocks.push(Object.freeze({ concrete, derived }));
-      continue;
-    }
-
-    const concrete = concreteNode("paragraph", range);
-    const derived: Paragraph = Object.freeze({
+const convertParagraph = (
+  node: MdastParagraph,
+  context: CommonMarkContext,
+  range: SourceRange,
+): Paragraph => {
+  const concrete = concreteNode("paragraph", range);
+  return registerInlineProgram(
+    Object.freeze({
       type: "paragraph",
       range,
       concrete,
-    });
-    blocks.push(Object.freeze({ concrete, derived }));
+      inlineRange: inlineRange(node.children, range, context),
+      text: phrasingText(node.children),
+    }),
+    node.children,
+    context,
+  );
+};
+
+const opaqueBlock = (
+  node: MdastRootContent,
+  context: CommonMarkContext,
+  range: SourceRange,
+): OpaqueBlock => {
+  const concrete = concreteNode("opaque", range);
+  const reason =
+    node.type === "definition"
+      ? "deferred-definition"
+      : `unsupported-block-${node.type}`;
+  context.diagnostics.push(
+    Object.freeze({
+      code: "markdown.opaque-block",
+      severity: "warning",
+      message: "Preserved an unsupported Markdown block as opaque source.",
+      source: "markdown",
+      ...(context.path === undefined ? {} : { path: context.path }),
+      range,
+    }),
+  );
+  return Object.freeze({ type: "opaque", range, concrete, reason });
+};
+
+const convertListItem = (
+  node: MdastListItem,
+  context: CommonMarkContext,
+): ListItem => {
+  const range = nodeRange(node, context);
+  const children = frozenArray(
+    node.children.map((child) =>
+      convertFlow(child, context, nodeRange(child, context)),
+    ),
+  );
+  const concrete = concreteNode(
+    "item",
+    range,
+    children.map((child) => child.concrete),
+  );
+  return Object.freeze({
+    type: "item",
+    range,
+    concrete,
+    ...(node.checked === null || node.checked === undefined
+      ? {}
+      : { checked: node.checked }),
+    children,
+  });
+};
+
+const convertFlow = (
+  node: MdastRootContent,
+  context: CommonMarkContext,
+  range: SourceRange,
+): FlowNode => {
+  if (node.type === "heading") return convertHeading(node, context, range);
+  if (node.type === "paragraph") return convertParagraph(node, context, range);
+
+  if (node.type === "blockquote") {
+    const children = frozenArray(
+      node.children.map((child) =>
+        convertFlow(child, context, nodeRange(child, context)),
+      ),
+    );
+    const concrete = concreteNode(
+      "blockquote",
+      range,
+      children.map((child) => child.concrete),
+    );
+    return Object.freeze({
+      type: "blockquote",
+      range,
+      concrete,
+      children,
+    }) satisfies Blockquote;
   }
 
+  if (node.type === "list") {
+    const children = frozenArray(
+      node.children.map((child) => convertListItem(child, context)),
+    );
+    const concrete = concreteNode(
+      "list",
+      range,
+      children.map((child) => child.concrete),
+    );
+    return Object.freeze({
+      type: "list",
+      range,
+      concrete,
+      ordered: node.ordered === true,
+      start: node.start ?? undefined,
+      tight: node.spread !== true,
+      children,
+    }) satisfies ListBlock;
+  }
+
+  if (node.type === "code") {
+    const [start] = nodeOffsets(node, context);
+    const fenced = /^ {0,3}(?:`{3,}|~{3,})/u.test(
+      context.source.slice(start),
+    );
+    const concrete = concreteNode(
+      fenced ? "fenced-code" : "indented-code",
+      range,
+    );
+    return Object.freeze({
+      type: "code",
+      range,
+      concrete,
+      ...(node.lang === null || node.lang === undefined
+        ? {}
+        : { language: node.lang }),
+      ...(node.meta === null || node.meta === undefined
+        ? {}
+        : { meta: node.meta }),
+      fenced,
+      value: node.value,
+    }) satisfies CodeBlock;
+  }
+
+  if (node.type === "html") {
+    const concrete = concreteNode("html", range);
+    return Object.freeze({
+      type: "html",
+      range,
+      concrete,
+      value: node.value,
+    }) satisfies HtmlNode;
+  }
+
+  if (node.type === "thematicBreak") {
+    const concrete = concreteNode("thematic-break", range);
+    return Object.freeze({
+      type: "thematic-break",
+      range,
+      concrete,
+    }) satisfies ThematicBreak;
+  }
+
+  return opaqueBlock(node, context, range);
+};
+
+const blankLine = (line: SourceLine, index: SourceIndex): ParsedBlock => {
+  const range = index.range(line.start, line.end);
+  const concrete = concreteNode("blank-line", range);
+  const derived: BlankLine = Object.freeze({
+    type: "blank-line",
+    range,
+    concrete,
+  });
+  return Object.freeze({ concrete, derived });
+};
+
+const parseBlocks = (
+  source: string,
+  contentStart: number,
+  lines: readonly SourceLine[],
+  index: SourceIndex,
+  path: string | undefined,
+): {
+  readonly blocks: readonly ParsedBlock[];
+  readonly diagnostics: readonly Diagnostic[];
+} => {
+  const diagnostics: Diagnostic[] = [];
+  const context: CommonMarkContext = {
+    source,
+    sourceOffset: contentStart,
+    index,
+    ...(path === undefined ? {} : { path }),
+    diagnostics,
+  };
+  const tree = fromMarkdown(source.slice(contentStart));
+  const spans = tree.children.map((node) => {
+    const [rawStart, rawEnd] = nodeOffsets(node, context);
+    const startLine = node.position?.start.line;
+    const start =
+      startLine === undefined ? rawStart : (lines[startLine - 1]?.start ?? rawStart);
+    const end = extendThroughNewline(source, rawEnd);
+    const range = index.range(start, end);
+    const derived = convertFlow(node, context, range);
+    const parsed: ParsedBlock = Object.freeze({
+      concrete: derived.concrete,
+      derived,
+    });
+    return { start, end, parsed };
+  });
+  const blocks = spans.map(({ parsed }) => parsed);
+
+  for (const line of lines) {
+    if (!isBlank(line.content)) continue;
+    const covered = spans.some(
+      ({ start, end }) => line.start >= start && line.end <= end,
+    );
+    if (!covered) blocks.push(blankLine(line, index));
+  }
+
+  blocks.sort(
+    (left, right) =>
+      left.derived.range.start.byteOffset -
+      right.derived.range.start.byteOffset,
+  );
   return {
     blocks: frozenArray(blocks),
     diagnostics: frozenArray(diagnostics),
@@ -569,7 +863,13 @@ export const parse = (
   const contentStart = source.startsWith("\uFEFF") ? 1 : 0;
   const lines = splitLines(source, contentStart);
   const sourceText = makeSourceText(source, lines, index);
-  const parsed = parseBlocks(lines, index, options.path);
+  const parsed = parseBlocks(
+    source,
+    contentStart,
+    lines,
+    index,
+    options.path,
+  );
   const documentRange = index.range(0, source.length);
   const concreteChildren: ConcreteNode[] = [];
 

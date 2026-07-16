@@ -135,7 +135,7 @@ describe("expression evaluation", () => {
 
     assert.equal(
       JSON.stringify(values),
-      '[{"children":[{"text":"lead","type":"paragraph"},{"type":"blank-line"},{"markdown":"> retained\\n","reason":"unsupported-block","type":"opaque"}],"path":"guide.md","type":"document"}]',
+      '[{"children":[{"text":"lead","type":"paragraph"},{"type":"blank-line"},{"children":[{"text":"retained","type":"paragraph"}],"type":"blockquote"}],"path":"guide.md","type":"document"}]',
     );
     assert.equal(Object.isFrozen(values[0]), true);
     const jsonDocument = values[0] as { readonly children: readonly unknown[] };
