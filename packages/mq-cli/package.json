@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "description": "Command-line interface for @prelude/mq.",
   "type": "module",
-  "files": ["dist"],
+  "files": ["bin", "dist"],
   "bin": {
-    "mq": "./dist/cli.js"
+    "mq": "./bin/mq.js"
   },
   "engines": {
     "node": ">=24.0.0"
