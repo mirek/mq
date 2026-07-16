@@ -833,6 +833,37 @@ Rules are evaluated in file order and diagnostics are sorted by source position,
 then rule order. A selector matching no nodes is not itself an error unless its
 `count` constraint requires matches.
 
+The internal rule engine evaluates selectors with the document root included.
+`count` produces one diagnostic for each failed bound; too-many failures point
+at the first excess match and too-few failures point at the document. Text
+length counts Unicode code points. Text and Markdown patterns search for a
+match; Markdown patterns receive the node's exact source slice. Text enums and
+attribute equality use exact typed equality. Attribute ranges require a numeric
+attribute and include both endpoints.
+
+Child constraints inspect immediate semantic children. `allowed` is one
+selector list; every child must match it. Each `required` selector must match at
+least one child. `order` lists selector groups in ascending order; unmatched
+children are ignored and the first listed group wins when a child matches more
+than one. Heading-rank continuity requires the first heading to have rank 1 and
+permits increases of at most one; decreases are unrestricted.
+
+`unique` resolves an ordinary semantic attribute, or the `text` and `markdown`
+projections. Missing projections and repeated typed values fail. A duplicate
+points at the repeated node and notes the first occurrence. Per-node checks are
+emitted in constraint order, then all diagnostics are stably sorted by source
+byte offset, rule order, and emission order. Document-wide option diagnostics
+sort before rule diagnostics at the same position. Rule messages are appended
+to the standard message.
+
+Rule evaluation uses `schema.count`, `schema.text-min-length`,
+`schema.text-max-length`, `schema.text-pattern`, `schema.text-enum`,
+`schema.markdown-pattern`, `schema.attribute-required`,
+`schema.attribute-equals`, `schema.attribute-range`, `schema.child-allowed`,
+`schema.child-required`, `schema.child-order`, `schema.unique`, and
+`schema.heading-ranks`. The later public-API milestone defines the exported
+validation result wrapper around this engine.
+
 Schema-loading diagnostics use `schema.json-syntax`,
 `schema.json-duplicate-key`, `schema.version`, `schema.required`, `schema.type`,
 `schema.unknown-key`, `schema.constraint`, `schema.selector`, and
