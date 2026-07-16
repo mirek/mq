@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Source-local edits
 
-- [Model source patches](todo/model-source-patches.md) — Represent non-overlapping source patches and update source maps deterministically.
 - [Parse edit fragments](todo/parse-edit-fragments.md) — Parse Markdown fragments and plan boundary newlines for insertions.
 - [Implement edit operations](todo/implement-edit-operations.md) — Add replace, remove, insertion, title, and attribute operations.
 - [Preserve immutable edits](todo/preserve-immutable-edits.md) — Return immutable edited snapshots equivalent to reparsing their rendered source.
