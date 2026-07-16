@@ -5,10 +5,6 @@ Todo files do not have statuses: when work is complete, delete its file and its
 index entry instead of marking it completed. Keep descriptions to one line and
 reorder the index whenever implementation evidence changes the priorities.
 
-## Complete Markdown and selectors
-
-- [Run Markdown conformance](todo/run-markdown-conformance.md) — Validate CommonMark/GFM behavior and mq losslessness against conformance corpora.
-
 ## Source-local edits
 
 - [Model source patches](todo/model-source-patches.md) — Represent non-overlapping source patches and update source maps deterministically.
