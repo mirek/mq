@@ -93,6 +93,10 @@ interface SelectorProgram {
 interface ParseState {
   readonly source: string;
   offset: number;
+  nesting: number;
+  selectors: number;
+  steps: number;
+  tests: number;
 }
 
 interface SelectionContext {
@@ -139,6 +143,11 @@ const positiveInteger = regexp(/[1-9]\d*/u);
 const quotedValue = regexp(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/su);
 const unquotedValue = regexp(/[^\s\]]+/u);
 const maxRegexPatternLength = 256;
+const maxSelectorBytes = 65_536;
+const maxSelectorListLength = 64;
+const maxSelectorSteps = 256;
+const maxSelectorTests = 256;
+const maxSelectorNesting = 16;
 
 class SelectorCompileError extends Error {
   readonly code: string;
@@ -160,6 +169,25 @@ class SelectorRegexError extends SelectorCompileError {
     super(message, "selector.regex");
   }
 }
+
+class SelectorLimitError extends SelectorCompileError {
+  constructor(message: string) {
+    super(message, "selector.limit");
+  }
+}
+
+const increment = (
+  state: ParseState,
+  field: "selectors" | "steps" | "tests",
+  maximum: number,
+): void => {
+  state[field] += 1;
+  if (state[field] > maximum) {
+    throw new SelectorLimitError(
+      `Selector ${field} are limited to ${maximum}.`,
+    );
+  }
+};
 
 const parseToken = <T>(
   parser: Parser<T>,
@@ -241,6 +269,7 @@ const parseAttributeOperator = (state: ParseState): AttributeOperator => {
 };
 
 const parseAttribute = (state: ParseState): AttributeSelector => {
+  increment(state, "tests", maxSelectorTests);
   expect(state, "[", 'Expected "[".');
   skipWhitespace(state);
   const name = parseToken(
@@ -385,6 +414,7 @@ const parseSelectorList = (
     ) {
       throw new SelectorCompileError("Expected a selector.");
     }
+    increment(state, "selectors", maxSelectorListLength);
     selectors.push(parseSequence(state, allowRelative, terminator));
     skipWhitespace(state);
     if (state.source[state.offset] !== ",") break;
@@ -396,6 +426,7 @@ const parseSelectorList = (
 };
 
 const parsePseudo = (state: ParseState): Pseudo => {
+  increment(state, "tests", maxSelectorTests);
   expect(state, ":", 'Expected ":".');
   const name = parseToken(identifier, state, "Expected a pseudo name.").toLowerCase();
 
@@ -438,7 +469,14 @@ const parsePseudo = (state: ParseState): Pseudo => {
 
   if (name === "has" || name === "not") {
     expect(state, "(", `Expected "(" after :${name}.`);
+    state.nesting += 1;
+    if (state.nesting > maxSelectorNesting) {
+      throw new SelectorLimitError(
+        `Selector nesting is limited to ${maxSelectorNesting}.`,
+      );
+    }
     const program = parseSelectorList(state, name === "has", ")");
+    state.nesting -= 1;
     skipWhitespace(state);
     expect(state, ")", `Expected ")" after :${name} argument.`);
     return Object.freeze({ kind: name, program });
@@ -513,6 +551,7 @@ function parseSequence(
     firstCombinator = explicitCombinator(state);
     if (firstCombinator !== undefined) skipWhitespace(state);
   }
+  increment(state, "steps", maxSelectorSteps);
   steps.push(
     Object.freeze({
       ...(firstCombinator === undefined ? {} : { combinator: firstCombinator }),
@@ -533,12 +572,14 @@ function parseSequence(
     const explicit = explicitCombinator(state);
     if (explicit !== undefined) {
       skipWhitespace(state);
+      increment(state, "steps", maxSelectorSteps);
       steps.push(
         Object.freeze({ combinator: explicit, compound: parseCompound(state) }),
       );
       continue;
     }
     if (separated && startsCompound(state.source[state.offset])) {
+      increment(state, "steps", maxSelectorSteps);
       steps.push(
         Object.freeze({
           combinator: "descendant",
@@ -554,7 +595,19 @@ function parseSequence(
 }
 
 const parseSelector = (source: string): SelectorProgram => {
-  const state: ParseState = { source, offset: 0 };
+  if (Buffer.byteLength(source) > maxSelectorBytes) {
+    throw new SelectorLimitError(
+      `Selector source is limited to ${maxSelectorBytes} UTF-8 bytes.`,
+    );
+  }
+  const state: ParseState = {
+    source,
+    offset: 0,
+    nesting: 0,
+    selectors: 0,
+    steps: 0,
+    tests: 0,
+  };
   const program = parseSelectorList(state, false);
   skipWhitespace(state);
   if (state.offset !== source.length) {

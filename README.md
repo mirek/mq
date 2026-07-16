@@ -12,7 +12,9 @@ lists, sibling combinators, structural/text/linear-regex pseudos, and relational
 `:has`/`:not`. The read-only CLI supports stdin and file queries, raw and JSON
 output, quiet and fail-empty modes, and human or JSON diagnostics. YAML, TOML,
 and line-fenced JSON frontmatter and CommonMark reference definitions are
-first-class query nodes. Editing and validation remain under implementation.
+first-class query nodes. Parsing and selector compilation use finite defaults
+with lossless opaque recovery. Editing and validation remain under
+implementation.
 
 ```ts
 import {

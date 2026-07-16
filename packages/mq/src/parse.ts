@@ -63,6 +63,14 @@ import {
 
 export interface ParseOptions {
   readonly path?: string;
+  readonly limits?: Partial<ParseLimits>;
+}
+
+export interface ParseLimits {
+  readonly maxBytes: number;
+  readonly maxNodes: number;
+  readonly maxNestingDepth: number;
+  readonly maxDiagnostics: number;
 }
 
 interface SourceIndex {
@@ -89,6 +97,7 @@ interface CommonMarkContext {
   readonly index: SourceIndex;
   readonly path?: string;
   readonly diagnostics: Diagnostic[];
+  readonly maxDiagnostics: number;
 }
 
 interface InlineProgram {
@@ -129,6 +138,51 @@ const utf8Width = (codePoint: number): number => {
 
 const frozenArray = <T>(values: readonly T[]): readonly T[] =>
   Object.freeze([...values]);
+
+const defaultParseLimits: ParseLimits = Object.freeze({
+  maxBytes: 16 * 1024 * 1024,
+  maxNodes: 100_000,
+  maxNestingDepth: 128,
+  maxDiagnostics: 100,
+});
+
+const limitValue = (
+  value: number | undefined,
+  fallback: number,
+  name: string,
+  minimum = 0,
+): number => {
+  const resolved = value ?? fallback;
+  if (!Number.isSafeInteger(resolved) || resolved < minimum) {
+    throw new RangeError(`${name} must be a safe integer >= ${minimum}`);
+  }
+  return resolved;
+};
+
+const resolveParseLimits = (limits: Partial<ParseLimits> = {}): ParseLimits =>
+  Object.freeze({
+    maxBytes: limitValue(
+      limits.maxBytes,
+      defaultParseLimits.maxBytes,
+      "maxBytes",
+    ),
+    maxNodes: limitValue(
+      limits.maxNodes,
+      defaultParseLimits.maxNodes,
+      "maxNodes",
+    ),
+    maxNestingDepth: limitValue(
+      limits.maxNestingDepth,
+      defaultParseLimits.maxNestingDepth,
+      "maxNestingDepth",
+    ),
+    maxDiagnostics: limitValue(
+      limits.maxDiagnostics,
+      defaultParseLimits.maxDiagnostics,
+      "maxDiagnostics",
+      1,
+    ),
+  });
 
 const makeSourceIndex = (text: string): SourceIndex => {
   const positions: SourcePosition[] = [];
@@ -632,6 +686,26 @@ const convertDefinition = (
   });
 };
 
+const pushDiagnostic = (
+  context: CommonMarkContext,
+  diagnostic: Diagnostic,
+): void => {
+  if (context.diagnostics.length < context.maxDiagnostics) {
+    context.diagnostics.push(Object.freeze(diagnostic));
+    return;
+  }
+  const last = context.diagnostics.at(-1);
+  if (last?.code === "markdown.diagnostic-limit") return;
+  context.diagnostics[context.maxDiagnostics - 1] = Object.freeze({
+    code: "markdown.diagnostic-limit",
+    severity: "warning",
+    message: `Stopped reporting Markdown diagnostics after ${context.maxDiagnostics} entries.`,
+    source: "markdown",
+    ...(context.path === undefined ? {} : { path: context.path }),
+    range: context.index.range(context.sourceOffset, context.source.length),
+  });
+};
+
 const opaqueBlock = (
   node: MdastRootContent,
   context: CommonMarkContext,
@@ -639,16 +713,14 @@ const opaqueBlock = (
 ): OpaqueBlock => {
   const concrete = concreteNode("opaque", range);
   const reason = `unsupported-block-${node.type}`;
-  context.diagnostics.push(
-    Object.freeze({
-      code: "markdown.opaque-block",
-      severity: "warning",
-      message: "Preserved an unsupported Markdown block as opaque source.",
-      source: "markdown",
-      ...(context.path === undefined ? {} : { path: context.path }),
-      range,
-    }),
-  );
+  pushDiagnostic(context, {
+    code: "markdown.opaque-block",
+    severity: "warning",
+    message: "Preserved an unsupported Markdown block as opaque source.",
+    source: "markdown",
+    ...(context.path === undefined ? {} : { path: context.path }),
+    range,
+  });
   return Object.freeze({ type: "opaque", range, concrete, reason });
 };
 
@@ -854,12 +926,63 @@ const blankLine = (line: SourceLine, index: SourceIndex): ParsedBlock => {
   return Object.freeze({ concrete, derived });
 };
 
+const limitedBlock = (
+  context: CommonMarkContext,
+  start: number,
+  end: number,
+  reason: string,
+  message: string,
+): ParsedBlock => {
+  const range = context.index.range(start, end);
+  const concrete = concreteNode("opaque", range);
+  const derived: OpaqueBlock = Object.freeze({
+    type: "opaque",
+    range,
+    concrete,
+    reason,
+  });
+  pushDiagnostic(context, {
+    code: "markdown.limit",
+    severity: "warning",
+    message,
+    source: "markdown",
+    ...(context.path === undefined ? {} : { path: context.path }),
+    range,
+  });
+  return Object.freeze({ concrete, derived });
+};
+
+const subtreeSizeAndDepth = (
+  root: MdastRootContent,
+): { readonly nodes: number; readonly depth: number } => {
+  const stack: { readonly node: object; readonly depth: number }[] = [
+    { node: root, depth: 1 },
+  ];
+  let nodes = 0;
+  let depth = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    nodes += 1;
+    depth = Math.max(depth, current.depth);
+    if (!("children" in current.node) || !Array.isArray(current.node.children)) {
+      continue;
+    }
+    for (const child of current.node.children) {
+      if (typeof child === "object" && child !== null) {
+        stack.push({ node: child, depth: current.depth + 1 });
+      }
+    }
+  }
+  return { nodes, depth };
+};
+
 const parseBlocks = (
   source: string,
   contentStart: number,
   lines: readonly SourceLine[],
   index: SourceIndex,
   path: string | undefined,
+  limits: ParseLimits,
 ): {
   readonly blocks: readonly ParsedBlock[];
   readonly diagnostics: readonly Diagnostic[];
@@ -871,7 +994,24 @@ const parseBlocks = (
     index,
     ...(path === undefined ? {} : { path }),
     diagnostics,
+    maxDiagnostics: limits.maxDiagnostics,
   };
+
+  if (index.byteLength > limits.maxBytes) {
+    const limited = limitedBlock(
+      context,
+      contentStart,
+      source.length,
+      "limit-max-bytes",
+      `Stopped semantic Markdown parsing after exceeding ${limits.maxBytes} UTF-8 bytes.`,
+    );
+    const blocks = contentStart >= source.length ? [] : [limited];
+    return {
+      blocks: frozenArray(blocks),
+      diagnostics: frozenArray(diagnostics),
+    };
+  }
+
   const tree = fromMarkdown(source.slice(contentStart), {
     extensions: [frontmatter(frontmatterOptions), gfm()],
     mdastExtensions: [
@@ -879,20 +1019,51 @@ const parseBlocks = (
       gfmFromMarkdown(),
     ],
   });
-  const spans = tree.children.map((node) => {
+  const spans: {
+    readonly start: number;
+    readonly end: number;
+    readonly parsed: ParsedBlock;
+  }[] = [];
+  let usedNodes = 0;
+  for (const node of tree.children) {
     const [rawStart, rawEnd] = nodeOffsets(node, context);
     const startLine = node.position?.start.line;
     const start =
       startLine === undefined ? rawStart : (lines[startLine - 1]?.start ?? rawStart);
     const end = extendThroughNewline(source, rawEnd);
+    const stats = subtreeSizeAndDepth(node);
+    if (usedNodes + stats.nodes > limits.maxNodes) {
+      spans.push({
+        start,
+        end: source.length,
+        parsed: limitedBlock(
+          context,
+          start,
+          source.length,
+          "limit-max-nodes",
+          `Stopped semantic Markdown parsing after ${limits.maxNodes} syntax nodes.`,
+        ),
+      });
+      break;
+    }
     const range = index.range(start, end);
-    const derived = convertFlow(node, context, range);
+    usedNodes += stats.nodes;
+    const derived =
+      stats.depth > limits.maxNestingDepth
+        ? limitedBlock(
+            context,
+            start,
+            end,
+            "limit-max-nesting-depth",
+            `Preserved a Markdown block exceeding nesting depth ${limits.maxNestingDepth} as opaque source.`,
+          ).derived
+        : convertFlow(node, context, range);
     const parsed: ParsedBlock = Object.freeze({
       concrete: derived.concrete,
       derived,
     });
-    return { start, end, parsed };
-  });
+    spans.push({ start, end, parsed });
+  }
   const blocks = spans.map(({ parsed }) => parsed);
 
   for (const line of lines) {
@@ -1009,6 +1180,7 @@ export const parse = (
   source: string,
   options: ParseOptions = {},
 ): Result<Document> => {
+  const limits = resolveParseLimits(options.limits);
   const index = makeSourceIndex(source);
   const contentStart = source.startsWith("\uFEFF") ? 1 : 0;
   const lines = splitLines(source, contentStart);
@@ -1019,6 +1191,7 @@ export const parse = (
     lines,
     index,
     options.path,
+    limits,
   );
   const documentRange = index.range(0, source.length);
   const concreteChildren: ConcreteNode[] = [];
