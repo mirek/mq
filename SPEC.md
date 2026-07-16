@@ -759,6 +759,63 @@ A v1 schema contains:
 - `options`: document-wide checks such as `headingRanks: "contiguous"`;
 - `frontmatter`: an optional JSON Schema applied to decoded frontmatter.
 
+The identifier is exactly `https://prelude.dev/mq/schema/v1`, exported as
+`MQ_SCHEMA_V1`. `schemaMetaSchemaV1` is the deeply immutable Draft 2020-12
+meta-schema for the extension-free core. The strict loader is normative when
+extensions are enabled.
+
+`loadSchema(input, options?)` accepts either JSON source text or equivalent
+plain TypeScript data and returns `Result<MarkdownSchema>`. `options.path`
+identifies the schema file in diagnostics. JSON source rejects duplicate keys,
+non-JSON whitespace, invalid escapes, non-finite numbers, and trailing input.
+Typed input rejects cycles, non-plain objects, accessors, non-enumerable or
+symbol properties, non-finite numbers, `undefined`, functions, and bigints.
+Successful schemas are copied into deeply immutable portable JSON data.
+
+The exact v1 constraint shapes are:
+
+```ts
+interface MarkdownSchemaRule {
+  readonly selector: string;
+  readonly count?: { readonly exact?: number; readonly min?: number; readonly max?: number };
+  readonly text?: {
+    readonly minLength?: number;
+    readonly maxLength?: number;
+    readonly pattern?: string;
+    readonly enum?: readonly string[];
+  };
+  readonly markdown?: { readonly pattern: string };
+  readonly attributes?: {
+    readonly required?: readonly string[];
+    readonly equals?: Readonly<Record<string, string | number | boolean>>;
+    readonly ranges?: Readonly<Record<string, { readonly min?: number; readonly max?: number }>>;
+  };
+  readonly children?: {
+    readonly allowed?: string;
+    readonly required?: readonly string[];
+    readonly order?: readonly string[];
+  };
+  readonly unique?: string;
+  readonly message?: string;
+}
+```
+
+`options.headingRanks`, when present, is `"contiguous"`.
+`options.extensions`, when present, is `"allow"`; it permits `x-` fields on
+mq-owned schema objects, preserves their JSON values, and gives them no v1
+effect. Without that option all unknown fields, including `x-` fields, fail.
+The embedded `frontmatter` object belongs to JSON Schema and is therefore opaque
+to mq's unknown-field check at this stage.
+
+Rules require a non-empty, valid selector and at least one constraint other than
+`message`. Child selectors are compiled with the same selector grammar.
+Cardinality and string-length bounds are non-negative integers; `exact` excludes
+`min` and `max`; every minimum must not exceed its maximum. Constraint objects
+and selector lists must not be empty. Attribute names use the selector
+identifier grammar. Patterns compile with the same linear-time RE2 engine as
+selector regexes. `unique` is a non-empty attribute or projection name whose
+evaluation is defined by the rule implementation milestone.
+
 ### 8.2 Rules
 
 Every rule begins with a selector. It may constrain:
@@ -776,8 +833,12 @@ Rules are evaluated in file order and diagnostics are sorted by source position,
 then rule order. A selector matching no nodes is not itself an error unless its
 `count` constraint requires matches.
 
-Schema loading rejects unknown fields by default. A schema option may permit
-extension fields prefixed with `x-`; they have no validation effect in v1.
+Schema-loading diagnostics use `schema.json-syntax`,
+`schema.json-duplicate-key`, `schema.version`, `schema.required`, `schema.type`,
+`schema.unknown-key`, `schema.constraint`, `schema.selector`, and
+`schema.pattern`. JSON diagnostics point at the offending token; typed-object
+diagnostics identify an escaped JSON Pointer in the message. Diagnostics retain
+deterministic object, rule, and constraint order.
 
 ### 8.3 Diagnostics
 

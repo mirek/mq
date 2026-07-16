@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Schemas
 
-- [Load schemas strictly](todo/load-schemas-strictly.md) — Define the meta-schema and reject unknown or malformed schema input.
 - [Implement schema rules](todo/implement-schema-rules.md) — Validate cardinality, content, attributes, children, ordering, and uniqueness.
 - [Integrate frontmatter and JSON Schema](todo/integrate-frontmatter-json-schema.md) — Decode frontmatter and decide the JSON Schema integration boundary.
 - [Format validation diagnostics](todo/format-validation-diagnostics.md) — Stabilize diagnostic codes, locations, ordering, and JSON output.
