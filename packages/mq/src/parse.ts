@@ -103,6 +103,7 @@ interface CommonMarkContext {
 interface InlineProgram {
   readonly nodes: readonly MdastPhrasingContent[];
   readonly context: CommonMarkContext;
+  readonly recoverOpaque: boolean;
 }
 
 interface SectionBuilder {
@@ -416,6 +417,12 @@ const inlineRange = (
   if (first === undefined || last === undefined) {
     return sourceRange(fallback.end, fallback.end);
   }
+  if (
+    first.position?.start.offset === undefined ||
+    last.position?.end.offset === undefined
+  ) {
+    return fallback;
+  }
   const [start] = nodeOffsets(first, context);
   const [, end] = nodeOffsets(last, context);
   return context.index.range(start, end);
@@ -437,12 +444,35 @@ const phrasingText = (nodes: readonly MdastPhrasingContent[]): string =>
     })
     .join("");
 
+const hasUnpositionedInline = (
+  nodes: readonly MdastPhrasingContent[],
+): boolean => {
+  const stack: MdastPhrasingContent[] = [...nodes];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (
+      node.position?.start.offset === undefined ||
+      node.position?.end.offset === undefined
+    ) {
+      return true;
+    }
+    if ("children" in node) {
+      stack.push(...(node.children as MdastPhrasingContent[]));
+    }
+  }
+  return false;
+};
+
 const registerInlineProgram = <T extends InlineContainer>(
   container: T,
   nodes: readonly MdastPhrasingContent[],
   context: CommonMarkContext,
 ): T => {
-  inlinePrograms.set(container, { nodes, context });
+  inlinePrograms.set(container, {
+    nodes,
+    context,
+    recoverOpaque: hasUnpositionedInline(nodes),
+  });
   return container;
 };
 
@@ -588,6 +618,19 @@ export const inlines = (container: InlineContainer): readonly Inline[] => {
   if (program === undefined) {
     throw new TypeError("inline container must be produced by parse");
   }
+  if (program.recoverOpaque) {
+    const concrete = concreteNode("opaque", container.inlineRange);
+    const view = frozenArray<Inline>([
+      Object.freeze({
+        type: "opaque",
+        range: container.inlineRange,
+        concrete,
+        reason: "unpositioned-inline-recovery",
+      }) satisfies OpaqueInline,
+    ]);
+    inlineViews.set(container, view);
+    return view;
+  }
   const view = frozenArray(
     program.nodes.map((node) => convertInline(node, program.context)),
   );
@@ -623,7 +666,7 @@ const convertHeading = (
       level: node.depth as HeadingLevel,
       title: phrasingText(node.children),
       style,
-      inlineRange: inlineRange(node.children, range, context),
+      inlineRange: inlineRange(node.children, nodeRange(node, context), context),
     }),
     node.children,
     context,
@@ -641,7 +684,7 @@ const convertParagraph = (
       type: "paragraph",
       range,
       concrete,
-      inlineRange: inlineRange(node.children, range, context),
+      inlineRange: inlineRange(node.children, nodeRange(node, context), context),
       text: phrasingText(node.children),
     }),
     node.children,

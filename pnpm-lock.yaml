@@ -63,6 +63,9 @@ importers:
       '@types/mdast':
         specifier: 4.0.4
         version: 4.0.4
+      commonmark-spec:
+        specifier: 0.31.2
+        version: 0.31.2
 
   packages/mq-cli:
     dependencies:
@@ -340,6 +343,9 @@ packages:
 
   character-entities@2.0.2:
     resolution: {integrity: sha512-shx7oQ0Awen/BRIdkjkvz54PnEEI/EjwXDSIZp86/KKdbafHh1Df/RYGBhn4hbe2+uKC9FnT5UCEdyPz3ai9hQ==}
+
+  commonmark-spec@0.31.2:
+    resolution: {integrity: sha512-vXKxmclzJPymhOJYD26G0oBjVmIcKC8p5m2DvHIq1A1btr1m0r0dT/PzRA5/nwxUbCAPedMNPEoiQE+zvuOcOw==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -687,6 +693,8 @@ snapshots:
   ccount@2.0.1: {}
 
   character-entities@2.0.2: {}
+
+  commonmark-spec@0.31.2: {}
 
   debug@4.4.3:
     dependencies:

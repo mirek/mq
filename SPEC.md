@@ -56,8 +56,8 @@ syntax or data model.
 - deterministic TypeScript and CLI APIs.
 
 CommonMark and GFM are compatibility targets, not permission to destroy syntax
-the parser does not yet understand. Until conformance is complete, unrecognized
-extensions must survive as opaque nodes.
+the parser does not understand. Unrecognized extensions survive as opaque
+nodes.
 
 ### 3.2 Explicitly deferred
 
@@ -890,6 +890,21 @@ Every release must protect these properties:
 Property tests should generate headings, block boundaries, delimiter spellings,
 and newline variants. Conformance fixtures should retain the original source and
 expected derived-tree snapshot together.
+
+The parser conformance suite pins all 652 CommonMark 0.31.2 examples through the
+`commonmark-spec` development package. Every input must round-trip, and examples
+in supported sections compare their reference HTML markers with mq semantic node
+counts. Selected GFM extension inputs are adapted from `cmark-gfm` commit
+`587a12bb54d95ac37241377e6ddc93ea0e45439b` and cover tables, cell mismatches,
+embedded pipes, strikethrough, autolink robustness, footnote opacity,
+strikethrough/autolink interoperation, and task items. Fixture attribution and
+CC BY-SA 4.0 terms live beside the tests.
+
+Intentional semantic deviations from the CommonMark-only corpus are pinned:
+example 96 is recognized as mq YAML frontmatter, and examples 602, 608, 611, and
+612 use GFM literal-autolink behavior. In example 606, the GFM tokenizer creates
+inline nodes without source positions; mq preserves that inline range as one
+opaque node instead of exposing semantic nodes with invented ranges.
 
 The API/CLI equivalence suite runs shared source and expression fixtures through
 the exported library functions and the workspace-installed `mq` binary. It
