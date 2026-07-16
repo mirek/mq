@@ -6,11 +6,10 @@ programs.
 
 The public package currently provides foundational document contracts, lossless
 block recognition, heading-derived section trees, byte-identical rendering of
-unchanged documents, CommonMark block semantics and lazy inline views, compiled
-selectors, and deterministic query expression streams. The read-only CLI
-supports stdin and file queries, raw and JSON output, quiet and fail-empty
-modes, and human or JSON diagnostics. GFM extensions, editing, and validation
-remain under implementation.
+unchanged documents, CommonMark and GFM semantic views, compiled selectors, and
+deterministic query expression streams. The read-only CLI supports stdin and
+file queries, raw and JSON output, quiet and fail-empty modes, and human or JSON
+diagnostics. Frontmatter, editing, and validation remain under implementation.
 
 ```ts
 import {

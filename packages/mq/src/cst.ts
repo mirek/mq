@@ -22,6 +22,10 @@ export type ConcreteNodeKind =
   | "break"
   | "link"
   | "image"
+  | "table"
+  | "row"
+  | "cell"
+  | "strikethrough"
   | "opaque";
 
 export interface ConcreteNode<

@@ -371,7 +371,7 @@ const withoutFinalNewline = (value: string): string =>
 
 const textOf = (node: MarkdownNode, context: EvaluationContext): string => {
   if (node.type === "heading") return node.title;
-  if (node.type === "paragraph") return node.text;
+  if (node.type === "paragraph" || node.type === "cell") return node.text;
   if (
     node.type === "text" ||
     node.type === "inline-code" ||
@@ -385,6 +385,7 @@ const textOf = (node: MarkdownNode, context: EvaluationContext): string => {
   if (
     node.type === "emphasis" ||
     node.type === "strong" ||
+    node.type === "strikethrough" ||
     node.type === "link"
   ) {
     return node.children.map((child) => textOf(child, context)).join("");
@@ -394,7 +395,9 @@ const textOf = (node: MarkdownNode, context: EvaluationContext): string => {
     node.type === "section" ||
     node.type === "blockquote" ||
     node.type === "list" ||
-    node.type === "item"
+    node.type === "item" ||
+    node.type === "table" ||
+    node.type === "row"
   ) {
     return node.children.map((child) => textOf(child, context)).join("\n");
   }
@@ -502,6 +505,7 @@ const nodeToJson = (
   if (
     node.type === "emphasis" ||
     node.type === "strong" ||
+    node.type === "strikethrough" ||
     node.type === "link"
   ) {
     return canonicalObject([
@@ -528,6 +532,35 @@ const nodeToJson = (
         ? []
         : [["reference", node.reference] as const]),
       ...(node.title === undefined ? [] : [["title", node.title] as const]),
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "table") {
+    return canonicalObject([
+      [
+        "alignments",
+        Object.freeze(
+          node.alignments.map((alignment) => alignment ?? null),
+        ),
+      ],
+      ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "row") {
+    return canonicalObject([
+      ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],
+      ["header", node.header],
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "cell") {
+    return canonicalObject([
+      ...(node.alignment === undefined
+        ? []
+        : [["alignment", node.alignment] as const]),
+      ["header", node.header],
+      ["text", node.text],
       ["type", node.type],
     ]);
   }

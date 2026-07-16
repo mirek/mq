@@ -290,11 +290,18 @@ const childrenOf = (node: MarkdownNode): readonly MarkdownNode[] => {
     node.type === "item" ||
     node.type === "emphasis" ||
     node.type === "strong" ||
+    node.type === "strikethrough" ||
+    node.type === "table" ||
+    node.type === "row" ||
     node.type === "link"
   ) {
     return node.children;
   }
-  if (node.type === "heading" || node.type === "paragraph") {
+  if (
+    node.type === "heading" ||
+    node.type === "paragraph" ||
+    node.type === "cell"
+  ) {
     return inlines(node);
   }
   return [];
@@ -326,6 +333,10 @@ const attributeOf = (
   if (name === "start" && node.type === "list") return node.start;
   if (name === "tight" && node.type === "list") return node.tight;
   if (name === "checked" && node.type === "item") return node.checked;
+  if (name === "alignment" && node.type === "cell") return node.alignment;
+  if (name === "header" && (node.type === "row" || node.type === "cell")) {
+    return node.header;
+  }
   if (name === "language" && node.type === "code") return node.language;
   if (name === "meta" && node.type === "code") return node.meta;
   if (name === "fenced" && node.type === "code") return node.fenced;
