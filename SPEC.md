@@ -962,6 +962,13 @@ function inspect(source: string) {
 }
 ```
 
+`validate(document, schema, options?)` accepts strict JSON schema source, an
+equivalent typed schema object, or a value previously returned by `loadSchema`.
+Schema-load failures and rule violations return `Failure`; a valid document
+returns `Success<Document>` containing the identical document object. The
+optional schema `path` is retained in rule-definition notes. The function does
+not read files or mutate either input.
+
 Fallible operations return discriminated results. Ordinary syntax, validation,
 and edit failures do not throw. Programmer errors, such as passing an object
 that violates a compiled internal contract, may throw.
@@ -1009,11 +1016,19 @@ Initial options:
 | `--diagnostics <human|json>` | stderr diagnostic format |
 | `-h`, `--help` | print read-only query usage and exit successfully |
 
-The CLI implements `--raw-output`, `--json`, `--quiet`, `--null-input`,
+The query CLI implements `--raw-output`, `--json`, `--quiet`, `--null-input`,
 `--fail-empty`, `--color`, `--diagnostics`, `--write`, and `--output`. `--json`
 and `--raw-output` are mutually exclusive. Boolean flags reject attached
 values; valued long options accept either a following argument or `=value`.
-`--schema` remains a usage error until validation ships.
+
+`mq validate --schema <schema.json> [file ...]` is the dedicated validation
+adapter. It loads and compiles the schema before reading any Markdown, then
+parses and validates files independently in argument order; omitted files read
+stdin and repeated `-` operands reuse its cached text. It emits no stdout.
+Schema-language and Markdown parse errors exit 2, violations exit 1, I/O errors
+exit 3, and the highest status wins without changing diagnostic input order.
+The command accepts `--color`, `--diagnostics`, and `--help`; query, output, and
+write options are usage errors.
 
 `--write` rejects stdin, duplicate paths, query results that are not exactly one
 document per input, and any parse/edit/schema error. It writes a sibling
@@ -1053,14 +1068,15 @@ stdout unless an explicit reporting option is added later. Human diagnostics
 use `path-or-source:line:column: severity[code]: message` when a range is
 available and omit the location suffix otherwise. `--color=always` colors the
 severity label, `never` emits no escapes, and `auto` colors only for a TTY.
+Diagnostic notes follow as `path-or-source:line:column: note: message` lines.
 JSON diagnostics are one compact diagnostic object per line. Expression
 compilation happens before any input is read; input diagnostics and results
 otherwise preserve input order.
 
-The checked-in query workflow guide covers help, stdin, ordered files, section
-Markdown, text, canonical JSON, collection, empty results, and diagnostics. Its
-console transcripts are executable conformance examples run against the
-workspace-installed binary.
+The checked-in query and validation workflow guides cover help, stdin, ordered
+files, section Markdown, text, canonical JSON, collection, empty results,
+schema violations, and diagnostics. Their console transcripts are executable
+conformance examples run against the workspace-installed binary.
 
 ### 10.3 Exit statuses
 

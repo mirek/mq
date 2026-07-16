@@ -1,0 +1,15 @@
+{
+  "$schema": "https://prelude.dev/mq/schema/v1",
+  "name": "Guide",
+  "rules": [
+    {
+      "selector": "heading[level=1]",
+      "count": { "exact": 1 },
+      "text": { "enum": ["Guide"] }
+    },
+    {
+      "selector": "heading[level=2]",
+      "count": { "min": 2 }
+    }
+  ]
+}

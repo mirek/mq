@@ -121,3 +121,4 @@ export type {
   SourcePatch,
   SourcePatchPlan,
 } from "./source-patch.ts";
+export { validate } from "./validate.ts";

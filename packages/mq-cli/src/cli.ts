@@ -6,10 +6,12 @@ import {
   compileExpression,
   evaluate,
   isMarkdownNode,
+  loadSchema,
   nodeMarkdown,
   parse,
   render,
   toJsonValue,
+  validate,
   type Diagnostic,
   type Document,
   type QueryValue,
@@ -49,6 +51,12 @@ interface LoadedInput {
   readonly path: string | undefined;
   readonly source?: string;
   readonly diagnostic?: Diagnostic;
+}
+
+interface ValidateArguments {
+  readonly schema: string | undefined;
+  readonly files: readonly string[];
+  readonly help: boolean;
 }
 
 class CliUsageError extends Error {}
@@ -209,6 +217,22 @@ const help = [
   "",
 ].join("\n");
 
+const validateHelp = [
+  "Usage: mq validate --schema <schema.json> [file ...]",
+  "",
+  "Validate Markdown documents against one mq schema.",
+  "",
+  "Arguments:",
+  "  file ...                   Input files; omit for stdin, - also means stdin",
+  "",
+  "Options:",
+  "      --schema <path>        JSON mq schema (required)",
+  "      --color <policy>       auto, always, or never (default: auto)",
+  "      --diagnostics <format> human or json (default: human)",
+  "  -h, --help                 Show this help",
+  "",
+].join("\n");
+
 const usesColor = (policy: ColorPolicy): boolean =>
   policy === "always" || (policy === "auto" && process.stderr.isTTY === true);
 
@@ -224,7 +248,15 @@ const formatHumanDiagnostic = (
   const renderedLabel = usesColor(color)
     ? `\u001b[${diagnostic.severity === "error" ? "31" : "33"}m${label}\u001b[0m`
     : label;
-  return `${location}: ${renderedLabel}: ${diagnostic.message}\n`;
+  let output = `${location}: ${renderedLabel}: ${diagnostic.message}\n`;
+  for (const note of diagnostic.notes ?? []) {
+    let noteLocation = note.path ?? diagnostic.path ?? diagnostic.source ?? "mq";
+    if (note.range !== undefined) {
+      noteLocation += `:${note.range.start.line}:${note.range.start.column}`;
+    }
+    output += `${noteLocation}: note: ${note.message}\n`;
+  }
+  return output;
 };
 
 const writeDiagnostics = (
@@ -261,7 +293,141 @@ const formatValue = (
   return `${JSON.stringify(toJsonValue(document, value))}\n`;
 };
 
+const parseValidateArguments = (
+  args: readonly string[],
+  options: CliOptions,
+): ValidateArguments => {
+  const files: string[] = [];
+  let schema: string | undefined;
+  let helpRequested = false;
+  let parseOptions = true;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]!;
+    if (parseOptions && argument === "--") {
+      parseOptions = false;
+      continue;
+    }
+    if (!parseOptions || argument === "-" || !argument.startsWith("-")) {
+      files.push(argument);
+      continue;
+    }
+    const equals = argument.indexOf("=");
+    const name = equals === -1 ? argument : argument.slice(0, equals);
+    const inline = equals === -1 ? undefined : argument.slice(equals + 1);
+    if (name === "--schema") {
+      if (schema !== undefined) {
+        throw new CliUsageError("mq validate accepts --schema only once.");
+      }
+      const parsed = optionValue(args, index, name, inline);
+      index = parsed.index;
+      schema = parsed.value;
+    } else if (name === "--color") {
+      const parsed = optionValue(args, index, name, inline);
+      index = parsed.index;
+      if (parsed.value !== "auto" && parsed.value !== "always" && parsed.value !== "never") {
+        throw new CliUsageError(`Invalid --color value ${JSON.stringify(parsed.value)}.`);
+      }
+      options.color = parsed.value;
+    } else if (name === "--diagnostics") {
+      const parsed = optionValue(args, index, name, inline);
+      index = parsed.index;
+      if (parsed.value !== "human" && parsed.value !== "json") {
+        throw new CliUsageError(`Invalid --diagnostics value ${JSON.stringify(parsed.value)}.`);
+      }
+      options.diagnostics = parsed.value;
+    } else if (name === "-h" || name === "--help") {
+      if (inline !== undefined) throw new CliUsageError(`Option ${name} does not accept a value.`);
+      helpRequested = true;
+    } else {
+      throw new CliUsageError(`Unknown validate option ${JSON.stringify(argument)}.`);
+    }
+  }
+  if (!helpRequested && schema === undefined) {
+    throw new CliUsageError("mq validate requires --schema <path>.");
+  }
+  return { schema, files: Object.freeze(files), help: helpRequested };
+};
+
+const validateMain = async (args: readonly string[]): Promise<number> => {
+  const options = optionsDefaults();
+  let parsed: ValidateArguments;
+  try {
+    parsed = parseValidateArguments(args, options);
+  } catch (error) {
+    if (!(error instanceof CliUsageError)) throw error;
+    writeDiagnostics([cliDiagnostic("cli.usage", error.message)], options);
+    return 2;
+  }
+  if (parsed.help) {
+    process.stdout.write(validateHelp);
+    return 0;
+  }
+
+  let schemaSource: string;
+  try {
+    schemaSource = await readFile(parsed.schema!, "utf8");
+  } catch {
+    writeDiagnostics(
+      [cliDiagnostic("cli.io", "Cannot read schema file.", parsed.schema)],
+      options,
+    );
+    return 3;
+  }
+  const loadedSchema = loadSchema(schemaSource, { path: parsed.schema! });
+  if (!loadedSchema.ok) {
+    writeDiagnostics(loadedSchema.diagnostics, options);
+    return 2;
+  }
+
+  const inputs: readonly (string | undefined)[] =
+    parsed.files.length === 0 ? [undefined] : parsed.files;
+  const stdinPromise = inputs.some((path) => path === undefined || path === "-")
+    ? readStdin()
+    : undefined;
+  let status = 0;
+  const diagnostics: Diagnostic[] = [];
+  const loadedInputs: readonly LoadedInput[] = await Promise.all(
+    inputs.map(async (path): Promise<LoadedInput> => {
+      if (path === undefined || path === "-") {
+        return { path, source: await stdinPromise! };
+      }
+      try {
+        return { path, source: await readFile(path, "utf8") };
+      } catch {
+        return {
+          path,
+          diagnostic: cliDiagnostic("cli.io", "Cannot read input file.", path),
+        };
+      }
+    }),
+  );
+  for (const loaded of loadedInputs) {
+    if (loaded.diagnostic !== undefined) {
+      diagnostics.push(loaded.diagnostic);
+      status = Math.max(status, 3);
+      continue;
+    }
+    const parsedDocument = parse(
+      loaded.source!,
+      loaded.path === undefined ? {} : { path: loaded.path },
+    );
+    diagnostics.push(...parsedDocument.diagnostics);
+    if (!parsedDocument.ok) {
+      status = Math.max(status, 2);
+      continue;
+    }
+    const result = validate(parsedDocument.value, loadedSchema.value);
+    if (!result.ok) {
+      diagnostics.push(...result.diagnostics);
+      status = Math.max(status, 1);
+    }
+  }
+  writeDiagnostics(diagnostics, options);
+  return status;
+};
+
 const main = async (args: readonly string[]): Promise<number> => {
+  if (args[0] === "validate") return validateMain(args.slice(1));
   const options = optionsDefaults();
   let parsedArguments: ParsedArguments;
   try {
