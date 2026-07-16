@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Complete Markdown and selectors
 
-- [Support CommonMark blocks](todo/support-commonmark-blocks.md) — Add the remaining CommonMark block forms and lazy inline views.
 - [Support GFM extensions](todo/support-gfm-extensions.md) — Add tables, task items, strikethrough, and autolinks.
 - [Support frontmatter and definitions](todo/support-frontmatter-definitions.md) — Recognize frontmatter and reference definitions without losing source syntax.
 - [Complete selector language](todo/complete-selector-language.md) — Add the remaining operators, sibling combinators, lists, and pseudos.

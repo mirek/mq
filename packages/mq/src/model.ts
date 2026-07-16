@@ -11,12 +11,15 @@ export interface Heading {
   readonly level: HeadingLevel;
   readonly title: string;
   readonly style: "atx" | "setext";
+  readonly inlineRange: SourceRange;
 }
 
 export interface Paragraph {
   readonly type: "paragraph";
   readonly range: SourceRange;
   readonly concrete: ConcreteNode<"paragraph">;
+  readonly inlineRange: SourceRange;
+  readonly text: string;
 }
 
 export interface BlankLine {
@@ -32,7 +35,66 @@ export interface OpaqueBlock {
   readonly reason: string;
 }
 
-export type Block = Paragraph | BlankLine | OpaqueBlock;
+export interface Blockquote {
+  readonly type: "blockquote";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"blockquote">;
+  readonly children: readonly FlowNode[];
+}
+
+export interface ListBlock {
+  readonly type: "list";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"list">;
+  readonly ordered: boolean;
+  readonly start: number | undefined;
+  readonly tight: boolean;
+  readonly children: readonly ListItem[];
+}
+
+export interface ListItem {
+  readonly type: "item";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"item">;
+  readonly checked?: boolean;
+  readonly children: readonly FlowNode[];
+}
+
+export interface CodeBlock {
+  readonly type: "code";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"fenced-code" | "indented-code">;
+  readonly language?: string;
+  readonly meta?: string;
+  readonly fenced: boolean;
+  readonly value: string;
+}
+
+export interface HtmlNode {
+  readonly type: "html";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"html" | "html-inline">;
+  readonly value: string;
+}
+
+export interface ThematicBreak {
+  readonly type: "thematic-break";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"thematic-break">;
+}
+
+export type Block =
+  | Paragraph
+  | BlankLine
+  | Blockquote
+  | ListBlock
+  | ListItem
+  | CodeBlock
+  | HtmlNode
+  | ThematicBreak
+  | OpaqueBlock;
+
+export type FlowNode = Heading | Block;
 
 export interface TextInline {
   readonly type: "text";
@@ -48,7 +110,65 @@ export interface OpaqueInline {
   readonly reason: string;
 }
 
-export type Inline = TextInline | OpaqueInline;
+export interface Emphasis {
+  readonly type: "emphasis";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"emphasis">;
+  readonly children: readonly Inline[];
+}
+
+export interface Strong {
+  readonly type: "strong";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"strong">;
+  readonly children: readonly Inline[];
+}
+
+export interface InlineCode {
+  readonly type: "inline-code";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"inline-code">;
+  readonly value: string;
+}
+
+export interface BreakInline {
+  readonly type: "break";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"break">;
+}
+
+export interface Link {
+  readonly type: "link";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"link">;
+  readonly destination?: string;
+  readonly title?: string;
+  readonly reference?: string;
+  readonly children: readonly Inline[];
+}
+
+export interface Image {
+  readonly type: "image";
+  readonly range: SourceRange;
+  readonly concrete: ConcreteNode<"image">;
+  readonly destination?: string;
+  readonly title?: string;
+  readonly reference?: string;
+  readonly alt: string;
+}
+
+export type Inline =
+  | TextInline
+  | Emphasis
+  | Strong
+  | InlineCode
+  | BreakInline
+  | Link
+  | Image
+  | HtmlNode
+  | OpaqueInline;
+
+export type InlineContainer = Heading | Paragraph;
 
 export interface Section {
   readonly type: "section";
@@ -73,4 +193,4 @@ export interface Document {
   readonly sections: readonly Section[];
 }
 
-export type MarkdownNode = Document | Section | Heading | Block | Inline;
+export type MarkdownNode = Document | Section | FlowNode | Inline;

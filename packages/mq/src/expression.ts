@@ -371,11 +371,34 @@ const withoutFinalNewline = (value: string): string =>
 
 const textOf = (node: MarkdownNode, context: EvaluationContext): string => {
   if (node.type === "heading") return node.title;
-  if (node.type === "text") return node.value;
-  if (node.type === "document" || node.type === "section") {
+  if (node.type === "paragraph") return node.text;
+  if (
+    node.type === "text" ||
+    node.type === "inline-code" ||
+    node.type === "code"
+  ) {
+    return node.value;
+  }
+  if (node.type === "image") return node.alt;
+  if (node.type === "break") return "\n";
+  if (node.type === "html") return node.value;
+  if (
+    node.type === "emphasis" ||
+    node.type === "strong" ||
+    node.type === "link"
+  ) {
+    return node.children.map((child) => textOf(child, context)).join("");
+  }
+  if (
+    node.type === "document" ||
+    node.type === "section" ||
+    node.type === "blockquote" ||
+    node.type === "list" ||
+    node.type === "item"
+  ) {
     return node.children.map((child) => textOf(child, context)).join("\n");
   }
-  if (node.type === "blank-line") return "";
+  if (node.type === "blank-line" || node.type === "thematic-break") return "";
   return withoutFinalNewline(markdownOf(node, context));
 };
 
@@ -424,10 +447,88 @@ const nodeToJson = (
   if (node.type === "blank-line") {
     return canonicalObject([["type", node.type]]);
   }
+  if (node.type === "blockquote") {
+    return canonicalObject([
+      ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "list") {
+    return canonicalObject([
+      ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],
+      ["ordered", node.ordered],
+      ...(node.start === undefined ? [] : [["start", node.start] as const]),
+      ["tight", node.tight],
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "item") {
+    return canonicalObject([
+      ...(node.checked === undefined ? [] : [["checked", node.checked] as const]),
+      ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "code") {
+    return canonicalObject([
+      ["fenced", node.fenced],
+      ...(node.language === undefined ? [] : [["language", node.language] as const]),
+      ...(node.meta === undefined ? [] : [["meta", node.meta] as const]),
+      ["type", node.type],
+      ["value", node.value],
+    ]);
+  }
+  if (node.type === "html") {
+    return canonicalObject([
+      ["type", node.type],
+      ["value", node.value],
+    ]);
+  }
+  if (node.type === "thematic-break" || node.type === "break") {
+    return canonicalObject([["type", node.type]]);
+  }
   if (node.type === "text") {
     return canonicalObject([
       ["type", node.type],
       ["value", node.value],
+    ]);
+  }
+  if (node.type === "inline-code") {
+    return canonicalObject([
+      ["type", node.type],
+      ["value", node.value],
+    ]);
+  }
+  if (
+    node.type === "emphasis" ||
+    node.type === "strong" ||
+    node.type === "link"
+  ) {
+    return canonicalObject([
+      ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],
+      ...(node.type === "link" && node.destination !== undefined
+        ? [["destination", node.destination] as const]
+        : []),
+      ...(node.type === "link" && node.reference !== undefined
+        ? [["reference", node.reference] as const]
+        : []),
+      ...(node.type === "link" && node.title !== undefined
+        ? [["title", node.title] as const]
+        : []),
+      ["type", node.type],
+    ]);
+  }
+  if (node.type === "image") {
+    return canonicalObject([
+      ["alt", node.alt],
+      ...(node.destination === undefined
+        ? []
+        : [["destination", node.destination] as const]),
+      ...(node.reference === undefined
+        ? []
+        : [["reference", node.reference] as const]),
+      ...(node.title === undefined ? [] : [["title", node.title] as const]),
+      ["type", node.type],
     ]);
   }
   return canonicalObject([

@@ -26,7 +26,11 @@
     "typecheck": "tsc --build"
   },
   "dependencies": {
-    "@prelude/parser": "catalog:"
+    "@prelude/parser": "catalog:",
+    "mdast-util-from-markdown": "2.0.3"
+  },
+  "devDependencies": {
+    "@types/mdast": "4.0.4"
   },
   "publishConfig": {
     "access": "public",

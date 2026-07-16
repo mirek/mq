@@ -66,7 +66,7 @@ describe("core selectors", () => {
     const everyNode = query("# A\nbody", "*");
     assert.deepEqual(
       everyNode.map(({ type }) => type),
-      ["document", "section", "heading", "paragraph"],
+      ["document", "section", "heading", "text", "paragraph", "text"],
     );
   });
 

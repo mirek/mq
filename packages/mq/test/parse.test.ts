@@ -53,20 +53,11 @@ describe("parse", () => {
         { kind: "paragraph", bytes: [25, 53] },
         { kind: "blank-line", bytes: [53, 55] },
         { kind: "setext-heading", bytes: [55, 73] },
-        { kind: "opaque", bytes: [73, 85] },
+        { kind: "blockquote", bytes: [73, 85] },
       ],
     );
 
-    assert.deepEqual(result.value.diagnostics, [
-      {
-        code: "markdown.opaque-block",
-        severity: "warning",
-        message: "Preserved an unsupported Markdown block as opaque source.",
-        source: "markdown",
-        path: "guide.md",
-        range: result.value.cst.children.at(-1)?.range,
-      },
-    ]);
+    assert.deepEqual(result.value.diagnostics, []);
     assert.deepEqual(
       result.value.sections.map(({ level, title }) => ({ level, title })),
       [
@@ -110,7 +101,7 @@ describe("parse", () => {
     assert.equal(result.value.source.hasFinalNewline, true);
   });
 
-  it("keeps fenced content in one opaque block", () => {
+  it("keeps fenced content in one semantic code block", () => {
     const result = parse("```md\n# not a heading\n```\n# heading");
 
     assert.equal(result.ok, true);
@@ -118,9 +109,10 @@ describe("parse", () => {
 
     assert.deepEqual(
       result.value.cst.children.map(({ kind }) => kind),
-      ["opaque", "atx-heading"],
+      ["fenced-code", "atx-heading"],
     );
-    assert.equal(result.value.diagnostics.length, 1);
+    assert.equal(result.value.diagnostics.length, 0);
+    assert.equal(result.value.preamble[0]?.type, "code");
     assert.equal(result.value.source.hasFinalNewline, false);
   });
 

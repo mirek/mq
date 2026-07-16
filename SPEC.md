@@ -122,6 +122,15 @@ grammars. A different runtime dependency is acceptable when implementing the
 same behavior locally would create greater correctness or maintenance risk; the
 choice must be recorded as an architectural decision in this specification.
 
+**Decision — CommonMark semantic parser.** `@prelude/mq` uses
+`mdast-util-from-markdown` 2.0.3, backed by micromark, to recognize CommonMark
+flow and phrasing semantics. Reimplementing CommonMark's container continuation,
+delimiter, HTML, and reference rules locally would create substantially greater
+correctness and maintenance risk. mq does not expose mdast and does not use it
+as source truth: mq retains the original source, computes its own UTF-8 ranges,
+owns immutable public nodes and section indexes, and renders exclusively from
+retained source. GFM behavior remains an explicit extension milestone.
+
 ## 5. Document model
 
 ### 5.1 Source coordinates
@@ -149,12 +158,16 @@ and must not be persisted in schemas.
 ### 5.2 Concrete syntax tree
 
 The CST preserves every source byte. Concrete nodes include all recognized
-Markdown forms plus whitespace, delimiters, escaping, and opaque recovery
-nodes. It distinguishes forms with equivalent meaning, such as ATX and Setext
-headings or fenced and indented code blocks.
+Markdown forms, top-level blank lines, and opaque recovery nodes. Container
+ranges retain marker, delimiter, escaping, indentation, and whitespace bytes
+even when those lexemes are not separate public child nodes. The CST
+distinguishes forms with equivalent meaning, such as ATX and Setext headings or
+fenced and indented code blocks.
 
-Inline syntax may be parsed lazily. A block's raw inline range remains
-authoritative even after an inline view is requested.
+CommonMark tokenization occurs during document parsing, but public inline nodes
+are materialized lazily by `inlines(headingOrParagraph)` and cached by container
+identity. A block's `inlineRange` remains authoritative before and after that
+view is requested.
 
 ### 5.3 Derived tree
 
@@ -187,6 +200,32 @@ interface Section {
   readonly sections: readonly Section[];
   readonly children: readonly (Heading | Block | Section)[];
 }
+
+interface Blockquote {
+  readonly type: "blockquote";
+  readonly children: readonly FlowNode[];
+}
+
+interface ListBlock {
+  readonly type: "list";
+  readonly ordered: boolean;
+  readonly start: number | undefined;
+  readonly tight: boolean;
+  readonly children: readonly ListItem[];
+}
+
+interface ListItem {
+  readonly type: "item";
+  readonly children: readonly FlowNode[];
+}
+
+interface CodeBlock {
+  readonly type: "code";
+  readonly language?: string;
+  readonly meta?: string;
+  readonly fenced: boolean;
+  readonly value: string;
+}
 ```
 
 `SourceText` retains the original string and UTF-8 byte length, an optional BOM
@@ -199,6 +238,13 @@ trees.
 `children` is the selector-facing order. A section's heading is its first child,
 followed by body blocks and nested sections in source order. Convenience fields
 such as `body` and `sections` are filtered views, not separate ownership.
+
+Top-level headings create sections; headings nested in block quotes or list
+items remain ordinary flow children and do not affect section hierarchy.
+CommonMark paragraph and heading inline views include decoded text, emphasis,
+strong emphasis, inline code, hard breaks, links, images, and inline HTML.
+Links and images expose either decoded destinations and optional titles or a
+normalized reference identifier. Unsupported extension nodes remain opaque.
 
 The document preamble contains blocks before the first heading. Those blocks are
 also the initial non-section entries in `document.children`. Frontmatter, when
@@ -257,6 +303,7 @@ Initial selectors recognize these type names:
 | `table`, `row`, `cell` | `alignment`, `header` |
 | `link`, `image` | `destination`, `title`, `reference` |
 | `html`, `thematic-break`, `definition`, `text` | kind-specific values |
+| `emphasis`, `strong`, `inline-code`, `break` | recursive children or decoded value |
 | `opaque` | `reason` |
 
 `title` is decoded plain text. `slug` uses a documented GitHub-compatible slug
@@ -441,6 +488,16 @@ source ranges and concrete parser nodes are deliberately excluded:
 | heading | `type`, `level`, `title`, `style` |
 | paragraph | `type`, projected `text` |
 | blank line | `type` |
+| blockquote | `type`, recursive `children` |
+| list | `type`, `ordered`, optional `start`, `tight`, recursive `children` |
+| item | `type`, optional `checked`, recursive `children` |
+| code | `type`, `fenced`, optional `language` and `meta`, decoded `value` |
+| HTML | `type`, `value` |
+| thematic break or hard break | `type` |
+| emphasis or strong | `type`, recursive `children` |
+| inline code | `type`, `value` |
+| link | `type`, destination or reference, optional title, recursive `children` |
+| image | `type`, `alt`, destination or reference, optional title |
 | text inline | `type`, `value` |
 | opaque block or inline | `type`, `reason`, exact `markdown` |
 
@@ -804,8 +861,6 @@ sections report each duplicate range in stable source order.
 
 These decisions should be made only with implementation evidence:
 
-- whether full CommonMark/GFM parsing should remain custom or wrap a mature
-  tokenizer while retaining mq's CST;
 - the exact GitHub-compatible slug variant and Unicode normalization behavior;
 - safe limits or an alternative engine for `:matches`;
 - syntax and conflict semantics for move/copy operations;

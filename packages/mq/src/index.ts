@@ -26,18 +26,32 @@ export type {
 export type {
   BlankLine,
   Block,
+  Blockquote,
+  BreakInline,
+  CodeBlock,
   Document,
+  Emphasis,
+  FlowNode,
   Heading,
   HeadingLevel,
+  HtmlNode,
+  Image,
   Inline,
+  InlineCode,
+  InlineContainer,
+  Link,
+  ListBlock,
+  ListItem,
   MarkdownNode,
   OpaqueBlock,
   OpaqueInline,
   Paragraph,
   Section,
+  Strong,
   TextInline,
+  ThematicBreak,
 } from "./model.ts";
-export { parse } from "./parse.ts";
+export { inlines, parse } from "./parse.ts";
 export type { ParseOptions } from "./parse.ts";
 export { render } from "./render.ts";
 export { compileSelector, select } from "./selector.ts";

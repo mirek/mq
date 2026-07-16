@@ -7,6 +7,21 @@ export type ConcreteNodeKind =
   | "atx-heading"
   | "setext-heading"
   | "paragraph"
+  | "blockquote"
+  | "list"
+  | "item"
+  | "fenced-code"
+  | "indented-code"
+  | "html"
+  | "html-inline"
+  | "thematic-break"
+  | "text"
+  | "emphasis"
+  | "strong"
+  | "inline-code"
+  | "break"
+  | "link"
+  | "image"
   | "opaque";
 
 export interface ConcreteNode<
