@@ -376,7 +376,7 @@ select("item[checked=false]") | json | array
 select("heading") | count
 ```
 
-The default CLI expression is `. | markdown`. A bare selector is not an
+The default CLI expression is `.`. A bare selector is not an
 expression; requiring `select(...)` keeps selector syntax independently usable
 by schemas and the TypeScript API.
 
@@ -621,6 +621,12 @@ mq validate --schema <schema.json> [file ...]
 
 With no files, `mq` reads one document from stdin. `-` names stdin explicitly.
 Multiple input documents are evaluated independently in argument order.
+The first positional argument is always the expression and every remaining
+positional argument is an input path; use `.` explicitly when querying files
+with the default expression. Options may occur before or after positionals
+until `--`, which only ends option recognition. Repeated `-` operands evaluate
+the same cached stdin text independently. `--null-input` evaluates one empty
+document without reading stdin and rejects file operands.
 
 Initial options:
 
@@ -637,6 +643,13 @@ Initial options:
 | `--color <auto|always|never>` | diagnostic color policy |
 | `--diagnostics <human|json>` | stderr diagnostic format |
 
+The initial read-only CLI implements `--raw-output`, `--json`, `--quiet`,
+`--null-input`, `--fail-empty`, `--color`, and `--diagnostics`. `--json` and
+`--raw-output` are mutually exclusive. Boolean flags reject attached values;
+the valued long options accept either a following argument or `=value`.
+`--write`, `--output`, and `--schema` remain usage errors until their respective
+write and validation milestones ship.
+
 `--write` rejects stdin, duplicate paths, query results that are not exactly one
 document per input, and any parse/edit/schema error. It writes a sibling
 temporary file, copies the original mode, flushes and closes it, then renames it
@@ -652,10 +665,23 @@ JSON, one compact value per line. `--raw-output` affects strings only. Multiple
 documents never acquire separator text that could be confused with source
 Markdown. The CLI therefore rejects Markdown node output from multiple inputs
 unless `--json` is used; callers may also process each file independently until
-a record-separator option is specified.
+a record-separator option is specified. Quiet mode performs evaluation and exit
+status checks but suppresses output, so this multi-input framing restriction
+does not apply.
+
+Node output is the concatenation of each exact source slice with no added
+separator. JSON values and JSON-quoted strings end with `\n`; raw strings also
+end with one framing `\n`. `--json` converts Markdown nodes and collected nodes
+through the library's canonical JSON representation before encoding them.
 
 Human diagnostics go to stderr. Data goes to stdout. In-place writes produce no
-stdout unless an explicit reporting option is added later.
+stdout unless an explicit reporting option is added later. Human diagnostics
+use `path-or-source:line:column: severity[code]: message` when a range is
+available and omit the location suffix otherwise. `--color=always` colors the
+severity label, `never` emits no escapes, and `auto` colors only for a TTY.
+JSON diagnostics are one compact diagnostic object per line. Expression
+compilation happens before any input is read; input diagnostics and results
+otherwise preserve input order.
 
 ### 10.3 Exit statuses
 

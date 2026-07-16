@@ -314,6 +314,8 @@ interface EvaluationContext {
   readonly utf16IndexByByteOffset: ReadonlyMap<number, number>;
 }
 
+const evaluationContexts = new WeakMap<Document, EvaluationContext>();
+
 const makeEvaluationContext = (document: Document): EvaluationContext => {
   const utf16IndexByByteOffset = new Map<number, number>();
   let byteOffset = 0;
@@ -332,7 +334,16 @@ const makeEvaluationContext = (document: Document): EvaluationContext => {
   return { document, utf16IndexByByteOffset };
 };
 
-const isMarkdownNode = (value: QueryValue): value is MarkdownNode =>
+const contextFor = (document: Document): EvaluationContext => {
+  const existing = evaluationContexts.get(document);
+  if (existing !== undefined) return existing;
+  const context = makeEvaluationContext(document);
+  evaluationContexts.set(document, context);
+  return context;
+};
+
+/** Returns whether a query value is a Markdown node. */
+export const isMarkdownNode = (value: unknown): value is MarkdownNode =>
   typeof value === "object" &&
   value !== null &&
   !Array.isArray(value) &&
@@ -350,6 +361,10 @@ const markdownOf = (
   }
   return context.document.source.text.slice(start, end);
 };
+
+/** Returns the exact source Markdown for a node in the supplied document. */
+export const nodeMarkdown = (document: Document, node: MarkdownNode): string =>
+  markdownOf(node, contextFor(document));
 
 const withoutFinalNewline = (value: string): string =>
   value.replace(/(?:\r\n|\r|\n)$/u, "").replace(/\r\n?|\n/gu, "\n");
@@ -438,6 +453,12 @@ const valueToJson = (
   return value;
 };
 
+/** Converts a query value to canonical, deeply immutable JSON-compatible data. */
+export const toJsonValue = (
+  document: Document,
+  value: QueryValue,
+): QueryJsonValue => valueToJson(value, contextFor(document));
+
 const evaluateStage = (
   incoming: readonly QueryValue[],
   stage: CompiledStage,
@@ -482,7 +503,7 @@ export const evaluate = (
     throw new TypeError("expression must be produced by compileExpression");
   }
 
-  const context = makeEvaluationContext(document);
+  const context = contextFor(document);
   let stream: readonly QueryValue[] = Object.freeze([document]);
   for (const stage of stages) stream = evaluateStage(stream, stage, context);
   return stream;

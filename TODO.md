@@ -7,7 +7,6 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Query CLI
 
-- [Build query CLI](todo/build-query-cli.md) — Add stdin/files, output modes, colors, diagnostics, and stable exit statuses.
 - [Verify API and CLI equivalence](todo/verify-api-cli-equivalence.md) — Prove that public library and CLI queries produce equivalent results.
 - [Document query workflows](todo/document-query-workflows.md) — Ship help text and executable end-user query examples.
 

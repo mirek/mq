@@ -9,7 +9,13 @@ export type {
   DiagnosticSeverity,
   DiagnosticSource,
 } from "./diagnostic.ts";
-export { compileExpression, evaluate } from "./expression.ts";
+export {
+  compileExpression,
+  evaluate,
+  isMarkdownNode,
+  nodeMarkdown,
+  toJsonValue,
+} from "./expression.ts";
 export type {
   CompiledExpression,
   QueryJsonObject,
