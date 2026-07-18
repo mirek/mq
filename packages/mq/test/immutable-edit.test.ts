@@ -7,6 +7,7 @@ import {
   compileSelector,
   parse,
   parseMarkdownFragment,
+  nodeMarkdown,
   render,
   replaceEdit,
   setTitleEdit,
@@ -55,6 +56,14 @@ describe("immutable edited document snapshots", () => {
     assert.equal(Object.isFrozen(edited.value), true);
     assert.ok(edited.value.sourceMap);
     assert.equal(Object.isFrozen(edited.value.sourceMap?.segments), true);
+
+    const originalHeading = parsed.value.sections[0]!.sections[0]!.heading;
+    const editedHeading = edited.value.sections[0]!.sections[0]!.heading;
+    assert.equal(nodeMarkdown(edited.value, editedHeading), "## Installation\n");
+    assert.throws(
+      () => nodeMarkdown(edited.value, originalHeading),
+      /node must belong to the evaluated document/,
+    );
 
     const reparsed = parse(render(edited.value), { path: "guide.md" });
     assert.equal(reparsed.ok, true);
