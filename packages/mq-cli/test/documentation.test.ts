@@ -6,12 +6,15 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
 const workspace = fileURLToPath(new URL("../../..", import.meta.url));
-const guidePaths = [
-  "query-workflows.md",
-  "library-workflows.md",
-  "validation-workflows.md",
-].map((name) => join(workspace, "docs", name));
-const transcripts = guidePaths.flatMap((path) =>
+const documentationPaths = [
+  join(workspace, "README.md"),
+  ...[
+    "query-workflows.md",
+    "library-workflows.md",
+    "validation-workflows.md",
+  ].map((name) => join(workspace, "docs", name)),
+];
+const transcripts = documentationPaths.flatMap((path) =>
   Array.from(readFileSync(path, "utf8").matchAll(/```console\n([\s\S]*?)```/gu)),
 );
 
