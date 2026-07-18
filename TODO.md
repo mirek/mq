@@ -7,5 +7,4 @@ reorder the index whenever implementation evidence changes the priorities.
 
 ## Correctness
 
-- [Preserve containers in fragment edits](todo/preserve-containers-in-fragment-edits.md) — Keep nested blockquote and list edits inside their semantic container.
 - [Reject foreign nodes in context helpers](todo/reject-foreign-nodes-in-context-helpers.md) — Prevent source projections from pairing a document with nodes owned by another snapshot.

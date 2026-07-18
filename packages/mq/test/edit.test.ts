@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   afterEdit,
   appendEdit,
+  applyEdits,
   applySourcePatches,
   beforeEdit,
   compileSelector,
@@ -12,6 +13,7 @@ import {
   planEdits,
   prependEdit,
   removeEdit,
+  render,
   replaceEdit,
   setAttributeEdit,
   setTitleEdit,
@@ -160,5 +162,129 @@ describe("edit operation patch planning", () => {
     if (!attribute.ok) {
       assert.equal(attribute.diagnostics[0].code, "edit.attribute");
     }
+  });
+
+  for (const newline of ["\n", "\r\n"] as const) {
+    for (const fixture of [
+      {
+        name: "blockquote",
+        source: `> target${newline}`,
+        target: "blockquote > paragraph",
+        continuation: "> ",
+        before: `> ## inserted${newline}> target${newline}`,
+        after: `> target${newline}> ## inserted${newline}`,
+        replacement: `> first${newline}> second${newline}`,
+        children(snapshot: Document) {
+          const quote = snapshot.preamble[0];
+          assert.equal(quote?.type, "blockquote");
+          if (quote?.type !== "blockquote") return [];
+          return quote.children;
+        },
+      },
+      {
+        name: "list item",
+        source: `- target${newline}`,
+        target: "item > paragraph",
+        continuation: "  ",
+        before: `- ## inserted${newline}  target${newline}`,
+        after: `- target${newline}  ## inserted${newline}`,
+        replacement: `- first${newline}  second${newline}`,
+        children(snapshot: Document) {
+          const list = snapshot.preamble[0];
+          assert.equal(list?.type, "list");
+          if (list?.type !== "list") return [];
+          return list.children[0]?.children ?? [];
+        },
+      },
+    ] as const) {
+      it(`preserves the ${fixture.name} for fragment edits with ${newline === "\n" ? "LF" : "CRLF"}`, () => {
+        const cases = [
+          {
+            operation: beforeEdit(selector(fixture.target), fragment("## inserted")),
+            expected: fixture.before,
+            replacement: `## inserted${newline}${fixture.continuation}`,
+            range: [2, 2],
+            types: ["heading", "paragraph"],
+          },
+          {
+            operation: afterEdit(selector(fixture.target), fragment("## inserted")),
+            expected: fixture.after,
+            replacement: `${newline}${fixture.continuation}## inserted`,
+            range: [8, 8],
+            types: ["paragraph", "heading"],
+          },
+          {
+            operation: replaceEdit(
+              selector(fixture.target),
+              fragment(`first${newline}second`),
+            ),
+            expected: fixture.replacement,
+            replacement: `first${newline}${fixture.continuation}second`,
+            range: [2, 8],
+            types: ["paragraph"],
+          },
+        ] as const;
+
+        for (const testCase of cases) {
+          const input = document(fixture.source);
+          const planned = planEdits(input, [testCase.operation]);
+          assert.equal(planned.ok, true);
+          if (!planned.ok) continue;
+          assert.equal(planned.value.patches.length, 1);
+          assert.deepEqual(
+            [
+              planned.value.patches[0]?.range.start.byteOffset,
+              planned.value.patches[0]?.range.end.byteOffset,
+            ],
+            testCase.range,
+          );
+          assert.equal(planned.value.patches[0]?.replacement, testCase.replacement);
+
+          const edited = applyEdits(input, [testCase.operation]);
+          assert.equal(edited.ok, true);
+          if (!edited.ok) continue;
+          assert.equal(render(edited.value), testCase.expected);
+          assert.equal(render(edited.value), edited.value.source.text);
+          assert.deepEqual(
+            fixture.children(edited.value).map(({ type }) => type),
+            testCase.types,
+          );
+          const paragraph = fixture
+            .children(edited.value)
+            .find(({ type }) => type === "paragraph");
+          if (testCase.types.length === 1) {
+            assert.equal(
+              paragraph?.type === "paragraph" ? paragraph.text : undefined,
+              `first${newline}second`,
+            );
+          }
+        }
+      });
+    }
+  }
+
+  it("rejects inline targets for block fragment operations", () => {
+    for (const operation of [replaceEdit, beforeEdit, afterEdit]) {
+      const planned = planEdits(document("a *target* here\n"), [
+        operation(selector("emphasis"), fragment("replacement")),
+      ]);
+      assert.equal(planned.ok, false);
+      if (!planned.ok) assert.equal(planned.diagnostics[0]?.code, "edit.target");
+    }
+  });
+
+  it("composes continuation prefixes for nested and task-list containers", () => {
+    assert.equal(
+      apply("> - target\n", [
+        replaceEdit(selector("item > paragraph"), fragment("first\nsecond")),
+      ]),
+      "> - first\n>   second\n",
+    );
+    assert.equal(
+      apply("- [ ] target\n", [
+        replaceEdit(selector("item > paragraph"), fragment("first\nsecond")),
+      ]),
+      "- [ ] first\n  second\n",
+    );
   });
 });
