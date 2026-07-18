@@ -4,7 +4,7 @@ import {
   type MarkdownFragment,
 } from "./fragment.ts";
 import type { Document, Heading, MarkdownNode } from "./model.ts";
-import { parse } from "./parse.ts";
+import { inlines, parse } from "./parse.ts";
 import { failure, success, type Result } from "./result.ts";
 import { select, type CompiledSelector } from "./selector.ts";
 import {
@@ -187,6 +187,141 @@ const sourceSlice = (document: Document, node: MarkdownNode): string =>
     utf16OffsetAtByte(document.source.text, node.range.end.byteOffset),
   );
 
+interface NodeContext {
+  readonly inline: boolean;
+  readonly nestedContainer: boolean;
+}
+
+const semanticChildren = (node: MarkdownNode): readonly MarkdownNode[] => {
+  if (
+    node.type === "document" ||
+    node.type === "section" ||
+    node.type === "blockquote" ||
+    node.type === "list" ||
+    node.type === "item" ||
+    node.type === "table" ||
+    node.type === "row" ||
+    node.type === "emphasis" ||
+    node.type === "strong" ||
+    node.type === "strikethrough" ||
+    node.type === "link"
+  ) {
+    return node.children;
+  }
+  if (
+    node.type === "heading" ||
+    node.type === "paragraph" ||
+    node.type === "cell"
+  ) {
+    return inlines(node);
+  }
+  return [];
+};
+
+const nodeContexts = (document: Document): WeakMap<MarkdownNode, NodeContext> => {
+  const contexts = new WeakMap<MarkdownNode, NodeContext>();
+  const visit = (
+    node: MarkdownNode,
+    inline: boolean,
+    nestedContainer: boolean,
+  ): void => {
+    if (contexts.has(node)) return;
+    contexts.set(node, Object.freeze({ inline, nestedContainer }));
+    const childInline =
+      inline ||
+      node.type === "heading" ||
+      node.type === "paragraph" ||
+      node.type === "cell";
+    const childNestedContainer =
+      nestedContainer || node.type === "blockquote" || node.type === "item";
+    for (const child of semanticChildren(node)) {
+      visit(child, childInline, childNestedContainer);
+    }
+  };
+  visit(document, false, false);
+  return contexts;
+};
+
+const linePrefix = (document: Document, node: MarkdownNode): string => {
+  const offset = utf16OffsetAtByte(
+    document.source.text,
+    node.range.start.byteOffset,
+  );
+  const before = document.source.text.slice(0, offset);
+  const lineStart = Math.max(before.lastIndexOf("\n"), before.lastIndexOf("\r")) + 1;
+  return before.slice(lineStart);
+};
+
+const continuationPrefix = (prefix: string): string => {
+  let remaining = prefix;
+  let continuation = "";
+  while (remaining.length > 0) {
+    const quote = /^( {0,3}>[\t ]?)/u.exec(remaining);
+    if (quote !== null) {
+      continuation += quote[0];
+      remaining = remaining.slice(quote[0].length);
+      continue;
+    }
+    const item = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]+)/u.exec(remaining);
+    if (item !== null) {
+      const markerLength = item[0].length - item[1]!.length - item[2]!.length;
+      continuation += `${item[1]}${" ".repeat(markerLength)}${item[2]}`;
+      remaining = remaining.slice(item[0].length);
+      const task = /^\[[ xX]\][\t ]+/u.exec(remaining);
+      if (task !== null) remaining = remaining.slice(task[0].length);
+      continue;
+    }
+    continuation += remaining[0];
+    remaining = remaining.slice(1);
+  }
+  return continuation;
+};
+
+const decorateFragment = (source: string, continuation: string): string =>
+  source.replace(/\r\n|\r|\n/gu, (newline) => `${newline}${continuation}`);
+
+const containerFragmentPatch = (
+  document: Document,
+  node: MarkdownNode,
+  fragment: MarkdownFragment,
+  kind: "after" | "before" | "replace",
+): SourcePatch => {
+  if (fragment.source.length === 0) {
+    const at = kind === "after" ? node.range.end : node.range.start;
+    return Object.freeze({ range: sourceRange(at, at), replacement: "" });
+  }
+  const continuation = continuationPrefix(linePrefix(document, node));
+  const decorated = decorateFragment(fragment.source, continuation);
+  const newline = document.source.dominantNewline ?? "\n";
+  if (kind === "before") {
+    const boundary = /(?:\r\n|\r|\n)$/u.test(fragment.source)
+      ? ""
+      : `${newline}${continuation}`;
+    return Object.freeze({
+      range: sourceRange(node.range.start, node.range.start),
+      replacement: `${decorated}${boundary}`,
+    });
+  }
+  if (kind === "after") {
+    const boundary = /^(?:\r\n|\r|\n)/u.test(fragment.source)
+      ? ""
+      : `${newline}${continuation}`;
+    return Object.freeze({
+      range: sourceRange(node.range.end, node.range.end),
+      replacement: `${boundary}${decorated}`,
+    });
+  }
+
+  const original = sourceSlice(document, node);
+  const needsFinalNewline =
+    /(?:\r\n|\r|\n)$/u.test(original) &&
+    !/(?:\r\n|\r|\n)$/u.test(fragment.source);
+  return Object.freeze({
+    range: node.range,
+    replacement: `${decorated}${needsFinalNewline ? newline : ""}`,
+  });
+};
+
 const patchAt = (
   document: Document,
   start: number,
@@ -324,21 +459,47 @@ export const planEdits = (
   editOperations: readonly EditOperation[],
 ): Result<SourcePatchPlan> => {
   const patches: SourcePatch[] = [];
+  const contexts = nodeContexts(document);
   for (const edit of editOperations) {
     if (!operations.has(edit)) {
       throw new TypeError("edit operation must be produced by an edit constructor");
     }
     const targets = select(document, edit.selector);
     for (const target of targets) {
+      const context = contexts.get(target);
+      if (
+        (edit.kind === "replace" ||
+          edit.kind === "before" ||
+          edit.kind === "after") &&
+        context?.inline === true
+      ) {
+        return failure(
+          editDiagnostic(
+            "edit.target",
+            `${edit.kind} requires a block, section, or document target.`,
+            target,
+          ),
+        );
+      }
       if (edit.kind === "remove") {
         patches.push(Object.freeze({ range: target.range, replacement: "" }));
       } else if (edit.kind === "replace") {
-        patches.push(replacementPatch(document, target, edit.fragment));
+        patches.push(
+          context?.nestedContainer === true
+            ? containerFragmentPatch(document, target, edit.fragment, edit.kind)
+            : replacementPatch(document, target, edit.fragment),
+        );
       } else if (edit.kind === "before" || edit.kind === "after") {
-        const at = edit.kind === "before" ? target.range.start : target.range.end;
-        const planned = planFragmentInsertion(document, edit.fragment, at);
-        if (!planned.ok) return planned;
-        patches.push(planned.value);
+        if (context?.nestedContainer === true) {
+          patches.push(
+            containerFragmentPatch(document, target, edit.fragment, edit.kind),
+          );
+        } else {
+          const at = edit.kind === "before" ? target.range.start : target.range.end;
+          const planned = planFragmentInsertion(document, edit.fragment, at);
+          if (!planned.ok) return planned;
+          patches.push(planned.value);
+        }
       } else if (edit.kind === "append" || edit.kind === "prepend") {
         const position = insertionPosition(target, edit.kind);
         if (!position.ok) return position;

@@ -661,8 +661,19 @@ The TypeScript patch-planning API exposes immutable `replaceEdit`, `removeEdit`,
 each compiled selector once in operation then source order and feeds every patch
 to the atomic source-patch planner. No matches produce no patches. Fragment
 replacement preserves a target's final newline when present. Before/after use
-the target boundaries; prepend/append currently accept document and section
-containers, and document prepend stays after leading frontmatter.
+the target boundaries. Replace, before, and after accept document, section, and
+block targets; selecting an inline target fails with `edit.target`.
+Prepend/append currently accept document and section containers, and document
+prepend stays after leading frontmatter.
+
+When a replace, before, or after target is a flow node nested in a block quote
+or list item, generated fragment lines remain in that semantic container. The
+first line reuses the target line's existing container prefix without changing
+it. Every additional line receives the corresponding continuation prefix:
+block-quote markers are retained, while a list marker becomes indentation.
+Only the target range, or its zero-width before/after boundary, and the required
+container-aware boundary text are patched. Inline source must instead be
+changed through an inline-specific operation such as `setTitleEdit`.
 
 `setTitleEdit` accepts headings or sections, rejects newlines, and escapes plain
 text Markdown punctuation before replacing only `inlineRange`. Source-local
