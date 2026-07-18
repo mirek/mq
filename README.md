@@ -1,32 +1,103 @@
 # mq
 
-`mq` is intended to do for Markdown documents what `jq` does for JSON: make
-structural queries and transformations easy from both shell pipelines and
-programs.
+`mq` does for Markdown what `jq` does for JSON: it queries documents by their
+structure from shell pipelines or JavaScript programs while preserving their
+original source.
 
-The public package currently provides foundational document contracts, lossless
-block recognition, heading-derived section trees, byte-identical rendering of
-unchanged documents, CommonMark and GFM semantic views, compiled selectors, and
-deterministic query expression streams. Selectors include typed comparisons,
-lists, sibling combinators, structural/text/linear-regex pseudos, and relational
-`:has`/`:not`. The read-only CLI supports stdin and file queries, raw and JSON
-output, quiet and fail-empty modes, and human or JSON diagnostics. YAML, TOML,
-and line-fenced JSON frontmatter and CommonMark reference definitions are
-first-class query nodes. Parsing and selector compilation use finite defaults
-with lossless opaque recovery. Parser behavior is checked against all 652
-CommonMark 0.31.2 examples and pinned GFM extension fixtures. The library also
-exposes validated, non-overlapping source-patch plans and exact
-retained/replacement source maps as its edit foundation. Lossless Markdown
-fragments can be parsed and planned at LF, CRLF, or mixed-newline boundaries,
-and composable planners cover replace/remove, before/after, prepend/append,
-titles, ATX levels, and task checks. The library can apply a planned transaction
-to a new immutable, reparsed document with an immediate source map; CLI writes
-support explicit atomic output and in-place mode preservation. Schemas now have
-a strict, versioned loader, portable YAML/TOML/JSON frontmatter decoding, and a
-deterministic structural and JSON Schema rule engine with stable located
-diagnostics. Both the public `validate` function and `mq validate` adapt the
-same rules, and query `--schema` gates stdout and atomic writes before any
-observable output.
+## Installation
+
+`mq` requires Node.js 24 or newer. Install the command globally with pnpm:
+
+```sh
+pnpm add --global @prelude/mq-cli
+```
+
+The installed executable is named `mq`. For the TypeScript and JavaScript API,
+install the core package in your project instead:
+
+```sh
+pnpm add @prelude/mq
+```
+
+## Quick start
+
+Print every heading as plain text:
+
+```console
+$ printf '# Guide\n## Install\nRun it.\n' | mq --raw-output 'select("heading") | text'
+Guide
+Install
+```
+
+Select a complete section as its exact Markdown source:
+
+```console
+$ printf '# Guide\n## Install\nRun it.\n' | mq 'select("section[title=Install]")'
+## Install
+Run it.
+```
+
+Count unchecked task-list items:
+
+```console
+$ printf '%s\n' '- [ ] write docs' '- [x] ship' | mq 'select("item[checked=false]") | count'
+1
+```
+
+Run `mq --help` for input, output, validation, and atomic-write options. A query
+is a pipeline expression; selectors are passed to `select("...")`. Selected
+nodes render as exact Markdown by default, while `text` returns decoded text and
+`--json` returns stable semantic JSON.
+
+## Selectors
+
+Selectors use CSS-like syntax over the Markdown tree. These node types are
+available:
+
+| Markdown area | Selectable types |
+| --- | --- |
+| Document structure | `document`, `section`, `heading` |
+| Flow blocks | `frontmatter`, `paragraph`, `blank-line`, `blockquote`, `list`, `item`, `code`, `html`, `thematic-break`, `definition`, `opaque` |
+| Tables | `table`, `row`, `cell` |
+| Inline content | `text`, `emphasis`, `strong`, `strikethrough`, `inline-code`, `break`, `link`, `image` |
+
+Attributes expose parsed metadata without matching raw Markdown spelling:
+
+| Types | Available attributes |
+| --- | --- |
+| `document` | `path` |
+| `section`, `heading` | `level`, `title`, `slug`; headings also have `style` |
+| `frontmatter` | `format`, `value` |
+| `list` | `ordered`, `start`, `tight` |
+| `item` | `checked` |
+| `code` | `language`, `meta`, `fenced`, `value` |
+| `row`, `cell` | `header`; cells also have `alignment` |
+| `link`, `image` | `destination`, `title`, `reference` |
+| `definition` | `reference`, `label`, `destination`, `title` |
+| `html`, `text`, `inline-code` | `value` |
+| `opaque` | `reason` |
+
+The complete selector syntax is:
+
+| Feature | Examples |
+| --- | --- |
+| Type and universal selectors | `heading`, `code`, `*` |
+| Attribute presence and equality | `[checked]`, `[level=2]`, `[title="Install"]` |
+| Attribute comparisons | `!=`, `^=`, `$=`, `*=`, `~=`, `>`, `>=`, `<`, `<=` |
+| Descendant and child combinators | `section code`, `section > paragraph` |
+| Adjacent and general siblings | `heading + paragraph`, `heading ~ code` |
+| Selector lists | `heading, code` |
+| Structural pseudos | `:first-child`, `:last-child`, `:nth-child(2)` |
+| Text and linear-regex pseudos | `:contains("install")`, `:matches(/todo/i)` |
+| Relational pseudos | `section:has(> code)`, `item:not([checked=true])` |
+
+Attribute and type names are case-insensitive; string values are
+case-sensitive. Numeric and boolean values are unquoted. `:matches` supports
+the RE2-compatible regular-expression subset with `i`, `m`, `s`, and `u` flags.
+See [Selectors in the specification](SPEC.md#6-selectors) for exact comparison,
+tree, escaping, limit, and diagnostic behavior.
+
+## Library API
 
 ```ts
 import {
@@ -49,6 +120,8 @@ if (parsed.ok && compiled.ok && expression.ok) {
   console.log(sections, markdown, render(parsed.value));
 }
 ```
+
+## More workflows
 
 See [Query workflows](docs/query-workflows.md) for executable examples covering
 stdin, files, Markdown, text, JSON, collection, and error handling.
