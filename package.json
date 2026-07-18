@@ -1,6 +1,6 @@
 {
   "name": "@prelude/mq-workspace",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Query, validate, and transform Markdown as structured documents.",
   "type": "module",

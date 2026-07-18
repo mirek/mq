@@ -61,11 +61,22 @@ describe("release automation", () => {
     assert.match(workflow, /verify-release\.mjs .*npm --version/u);
     assert.equal(workflow.match(/--dry-run/gu)?.length, 2);
     assert.equal(workflow.match(/npm view/gu)?.length, 2);
+    const publishArchives = Array.from(
+      workflow.matchAll(/npm publish "([^"]+\.tgz)"/gu),
+      (match) => match[1],
+    );
+    assert.equal(publishArchives.length, 4);
+    assert.equal(
+      publishArchives.every((archive) =>
+        archive?.startsWith("./release-artifacts/")
+      ),
+      true,
+    );
     assert.match(workflow, /npm publish .*prelude-mq-.*--access public/u);
     assert.match(workflow, /npm publish .*prelude-mq-cli-.*--access public/u);
     assert.ok(
-      workflow.indexOf('npm publish "release-artifacts/prelude-mq-') <
-        workflow.indexOf('npm publish "release-artifacts/prelude-mq-cli-'),
+      workflow.indexOf('npm publish "./release-artifacts/prelude-mq-') <
+        workflow.indexOf('npm publish "./release-artifacts/prelude-mq-cli-'),
     );
     assert.match(workflow, /gh release create .*--generate-notes/u);
     assert.equal(workflow.includes("NODE_AUTH_TOKEN"), false);

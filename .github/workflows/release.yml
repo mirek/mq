@@ -39,8 +39,8 @@ jobs:
       - run: mkdir release-artifacts
       - run: pnpm --filter @prelude/mq pack --pack-destination release-artifacts
       - run: pnpm --filter @prelude/mq-cli pack --pack-destination release-artifacts
-      - run: npm publish "release-artifacts/prelude-mq-${{ steps.metadata.outputs.version }}.tgz" --dry-run
-      - run: npm publish "release-artifacts/prelude-mq-cli-${{ steps.metadata.outputs.version }}.tgz" --dry-run
+      - run: npm publish "./release-artifacts/prelude-mq-${{ steps.metadata.outputs.version }}.tgz" --dry-run
+      - run: npm publish "./release-artifacts/prelude-mq-cli-${{ steps.metadata.outputs.version }}.tgz" --dry-run
 
   publish:
     if: github.event_name == 'push'
@@ -74,14 +74,14 @@ jobs:
           if npm view "@prelude/mq@${{ steps.metadata.outputs.version }}" version >/dev/null 2>&1; then
             echo "@prelude/mq@${{ steps.metadata.outputs.version }} is already published"
           else
-            npm publish "release-artifacts/prelude-mq-${{ steps.metadata.outputs.version }}.tgz" --access public
+            npm publish "./release-artifacts/prelude-mq-${{ steps.metadata.outputs.version }}.tgz" --access public
           fi
       - name: Publish CLI if absent
         run: |
           if npm view "@prelude/mq-cli@${{ steps.metadata.outputs.version }}" version >/dev/null 2>&1; then
             echo "@prelude/mq-cli@${{ steps.metadata.outputs.version }} is already published"
           else
-            npm publish "release-artifacts/prelude-mq-cli-${{ steps.metadata.outputs.version }}.tgz" --access public
+            npm publish "./release-artifacts/prelude-mq-cli-${{ steps.metadata.outputs.version }}.tgz" --access public
           fi
       - run: gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "$RELEASE_TAG"
         env:
