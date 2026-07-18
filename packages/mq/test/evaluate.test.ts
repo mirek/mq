@@ -215,4 +215,54 @@ describe("expression evaluation", () => {
       type: "heading",
     });
   });
+
+  it("rejects foreign nodes in context-dependent projections", () => {
+    const document = parseDocument("# Same\nbody\n");
+    const coincident = parseDocument("# Same\nbody\n");
+    const different = parseDocument("lead\n## Different\nbody\n");
+    const heading = document.sections[0]!.heading;
+    const coincidentHeading = coincident.sections[0]!.heading;
+    const differentHeading = different.sections[0]!.heading;
+
+    assert.equal(nodeMarkdown(document, heading), "# Same\n");
+    assert.throws(
+      () => nodeMarkdown(document, coincidentHeading),
+      /node must belong to the evaluated document/,
+    );
+    assert.throws(
+      () => nodeMarkdown(document, differentHeading),
+      /node must belong to the evaluated document/,
+    );
+    assert.throws(
+      () => toJsonValue(document, coincidentHeading),
+      /node must belong to the evaluated document/,
+    );
+    assert.throws(
+      () =>
+        toJsonValue(document, {
+          nested: [differentHeading],
+        } as unknown as QueryValue),
+      /node must belong to the evaluated document/,
+    );
+
+    const localOpaque = parse("opaque", { limits: { maxBytes: 0 } });
+    const foreignOpaque = parse("opaque", { limits: { maxBytes: 0 } });
+    assert.equal(localOpaque.ok, true);
+    assert.equal(foreignOpaque.ok, true);
+    if (!localOpaque.ok || !foreignOpaque.ok) return;
+    const localNode = localOpaque.value.preamble[0]!;
+    const foreignNode = foreignOpaque.value.preamble[0]!;
+    assert.deepEqual(toJsonValue(localOpaque.value, localNode), {
+      markdown: "opaque",
+      reason: "limit-max-bytes",
+      type: "opaque",
+    });
+    assert.throws(
+      () =>
+        toJsonValue(localOpaque.value, {
+          nested: [[foreignNode]],
+        } as unknown as QueryValue),
+      /node must belong to the evaluated document/,
+    );
+  });
 });

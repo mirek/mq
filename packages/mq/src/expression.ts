@@ -7,6 +7,7 @@ import {
 
 import type { Diagnostic } from "./diagnostic.ts";
 import type { Document, MarkdownNode } from "./model.ts";
+import { inlines } from "./parse.ts";
 import { resourceLimits } from "./resource-limits.ts";
 import { failure, success, type Result } from "./result.ts";
 import { compileSelector, select, type CompiledSelector } from "./selector.ts";
@@ -328,10 +329,48 @@ export const compileExpression = (
 
 interface EvaluationContext {
   readonly document: Document;
+  readonly ownedNodes: WeakSet<MarkdownNode>;
   readonly utf16IndexByByteOffset: ReadonlyMap<number, number>;
 }
 
 const evaluationContexts = new WeakMap<Document, EvaluationContext>();
+
+const nodeChildren = (node: MarkdownNode): readonly MarkdownNode[] => {
+  if (
+    node.type === "document" ||
+    node.type === "section" ||
+    node.type === "blockquote" ||
+    node.type === "list" ||
+    node.type === "item" ||
+    node.type === "table" ||
+    node.type === "row" ||
+    node.type === "emphasis" ||
+    node.type === "strong" ||
+    node.type === "strikethrough" ||
+    node.type === "link"
+  ) {
+    return node.children;
+  }
+  if (
+    node.type === "heading" ||
+    node.type === "paragraph" ||
+    node.type === "cell"
+  ) {
+    return inlines(node);
+  }
+  return [];
+};
+
+const ownedNodesOf = (document: Document): WeakSet<MarkdownNode> => {
+  const ownedNodes = new WeakSet<MarkdownNode>();
+  const visit = (node: MarkdownNode): void => {
+    if (ownedNodes.has(node)) return;
+    ownedNodes.add(node);
+    for (const child of nodeChildren(node)) visit(child);
+  };
+  visit(document);
+  return ownedNodes;
+};
 
 const makeEvaluationContext = (document: Document): EvaluationContext => {
   const utf16IndexByByteOffset = new Map<number, number>();
@@ -348,7 +387,11 @@ const makeEvaluationContext = (document: Document): EvaluationContext => {
     utf16IndexByByteOffset.set(byteOffset, index);
   }
 
-  return { document, utf16IndexByByteOffset };
+  return {
+    document,
+    ownedNodes: ownedNodesOf(document),
+    utf16IndexByByteOffset,
+  };
 };
 
 const contextFor = (document: Document): EvaluationContext => {
@@ -371,6 +414,9 @@ const markdownOf = (
   node: MarkdownNode,
   context: EvaluationContext,
 ): string => {
+  if (!context.ownedNodes.has(node)) {
+    throw new TypeError("node must belong to the evaluated document");
+  }
   const start = context.utf16IndexByByteOffset.get(node.range.start.byteOffset);
   const end = context.utf16IndexByByteOffset.get(node.range.end.byteOffset);
   if (start === undefined || end === undefined) {
@@ -436,6 +482,9 @@ const nodeToJson = (
   node: MarkdownNode,
   context: EvaluationContext,
 ): QueryJsonObject => {
+  if (!context.ownedNodes.has(node)) {
+    throw new TypeError("node must belong to the evaluated document");
+  }
   if (node.type === "document") {
     return canonicalObject([
       ["children", Object.freeze(node.children.map((child) => nodeToJson(child, context)))],

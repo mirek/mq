@@ -177,7 +177,11 @@ The document records:
 Node identity is stable within one document snapshot. A no-op edit returns that
 same snapshot, but every non-empty edit reparses and creates new node identities,
 including for retained ranges. Identity must not be persisted across snapshots
-or in schemas.
+or in schemas. Context-dependent helpers such as `nodeMarkdown(document, node)`
+and `toJsonValue(document, value)` require every projected node, including
+nodes nested in arrays or objects, to belong by identity to the supplied
+document snapshot. A foreign node is programmer misuse and throws `TypeError`
+even when its range coordinates coincide with that document.
 
 ### 5.2 Concrete syntax tree
 
